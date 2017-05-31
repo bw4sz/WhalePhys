@@ -1,0 +1,63 @@
+---
+title: "Foraging Model"
+author: "Ben Weinstein"
+date: "May 30, 2017"
+output: 
+  html_document:
+    toc: true
+    number_sections: true
+    theme: united
+---
+
+#Abstract
+
+Foraging behavior shapes animal health through the balance of the resources expended to obtain nutrients and the energetic rewards of captured resources. The health of individuals will influence reproductive success, fitness and ultimately population viability. Despite the key role of individual health in evolutionary ecology, it can be challenging to connect foraging behavior and energetics in free living marine organisms. Combining data on foraging strategies, feeding behavior and physiology, we estimate body mass for humpback whales as they forage near the Antarctic Peninsula. Humpback whales require extreme energetic storage to facilitate the yearly migration between austral foraging areas to equatorial breeding grounds. Based on tagged individuals, we model the foraging effort, duration and energetics of animals throughout the austral season. We then connect these measurements to studies of whale feeding physiology and biomechanics. While predictive modeling of individual behavior will be naturally complex, we utilize hierarchical Bayesian models to propagate uncertainty throughout the model. By testing a variety of model assumptions surrounding energetics and foraging rate, we can understand the sensitivity of our predictions to parameter bounds. Our model forms the basis for field tests of animal body condition and further exploration of individual behavior and animal health. Future work combining the environmental impacts of changing ocean conditions on foraging success will inform conservation strategies in a changing marine ecosystem.
+
+
+##Time Feeding
+
+The proportion of time an animal is in a feeding behavioral state.
+
+(@eq1)
+
+#Correlated random walk
+
+*Process Model*
+
+$$Y_{i,t+1} \sim Multivariate Normal(d_{i,t},σ)
+
+d_{i,t}= Y_{i,t} + γ_(s_(i,g,t) )*T_(i,g,t)*( Y_(i,g,t)- Y_(i,g,t-1) )
+\begin{matrix}
+  \alpha_{i,1,1} & 1-\alpha_{i,1,1} \\
+  \alpha_{i,2,1} & 1-\alpha_{i,2,1} \\
+\end{matrix}
+
+logit(\phi_{traveling}) = \alpha_{Behavior_{t-1}}
+$$
+
+Y_(i,g,t+1)∼ Multivariate Normal(d_(i,g,t),σ)
+
+d_(i,g,t)= Y_(i,g,t)+ γ_(s_(i,g,t) )*T_(i,g,t)*( Y_(i,g,t)- Y_(i,g,t-1) )
+
+T_(i,g,t)=■(cosa(θ_(s_(i,g,t) ))&-sina(θ_(s_(i,g,t) ))@sina(θ_(s_(i,g,t) ))&cosa(θ_(s_(i,g,t) )))  
+
+S_(i,g,t)  ~ Multinomial(■(ϕ_(i,g,t,m)&1-ϕ_(i,g,t,m) ) )
+
+logit(ϕ_(i,g,t) )= α_(s_(i,g,t-1,m) )
+$$
+
+## Distribution of dive depths
+
+The proportion of time at each dive depth as a function of time feeding.
+
+(@eq2) 
+$$ Y_i \sim 
+
+Y_i \sim Multinomial(M)
+
+M=[m_1,m_2…m_n ]
+
+M \sim dirichlet(ρ_i) $$
+
+### Suction cup tags
+Information regarding the data source
