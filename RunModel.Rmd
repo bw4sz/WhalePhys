@@ -33,10 +33,11 @@ d_{i,t}= Y_{i,t} + γ_(s_(i,g,t) )*T_(i,g,t)*( Y_(i,g,t)- Y_(i,g,t-1) )
 \end{matrix}
 
 logit(\phi_{traveling}) = \alpha_{Behavior_{t-1}}
+
 $$
 
 
-```{r}
+```{r,echo=F,warning=F,message=F}
 library(tidyr)
 library(ggplot2)
 library(maptools)
@@ -45,10 +46,16 @@ library(dplyr)
 library(stringr)
 library(chron)
 library(R2jags)
+library(knitr)
 
-newModel<-T
+opts_chunk$set(echo=F,warnings=F,messages=F)
+mytheme<-theme(axis.text.x=element_blank(),axis.ticks.x=element_blank(),axis.text.y=element_blank(),axis.ticks.y=element_blank(),axis.title.x=element_blank(),axis.title.y=element_blank(),panel.grid=element_blank())
+```
+
 
 #read data
+```{r}
+newModel<-T
 mdat<-read.csv("C:/Users/Ben/Documents/DiveData/Data/Humpback Whales Megaptera novaeangliae West Antarctic Peninsula-3343066988628153526.csv")
 
 #standardize column names to match the simulation
@@ -92,6 +99,9 @@ mxy<-mxy[!is.na(mxy$timestamp),]
 #remove duplicates
 #mxy<-mxy[!duplicated(data.frame(mxy$timestamp,mxy$Animal)),]
 mxy<-mxy[!mxy$ETOPO1.Elevation>0,]
+
+ggplot()+geom_path(data=mxy, aes(x=x, y=y,group=Animal),size=.5)  + borders(fill="grey90") + coord_cartesian(ylim = c(-70,-62),xlim=c(-55,-73)) + theme_bw() + mytheme + scale_fill_manual(values=rep("NA",8)) + scale_color_discrete(guide="none")
+
 ```
 
 ```{r}
@@ -188,12 +198,12 @@ obs_class<-reshape2::acast(mxy,Animal~Track~step~jStep,value.var="numargos")
 ```
 
 
-```{r,child="Bayesian/MultiSpecies.R",eval=T}
+```{r,child="Bayesian/Foraging.R",eval=T}
 ```
 
 ```{r,eval=T}
 #source jags file
-source("Bayesian/MultiSpecies.R")
+source("Bayesian/Foraging.R")
 
 #prior cov shape
 R <- diag(c(1,1))
@@ -203,13 +213,13 @@ data=list(argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tracks,Month=Mont
 pt<-c("gamma","alpha")
 
 if(newModel){
-  system.time(jagM<-jags.parallel(model.file = "Bayesian/Multi_RW.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10000,n.burnin=9000,n.thin=2,DIC=FALSE))
+  system.time(jagM<-jags.parallel(model.file = "Bayesian/Foraging.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10000,n.burnin=9000,n.thin=2,DIC=FALSE))
 }
 
 ```
 
 ##Chains
-```{r,eval=F}
+```{r,eval=T}
 
 #bind chains
 pc<-reshape2::melt(jagM$BUGSoutput$sims.array)
@@ -289,7 +299,7 @@ For example, if we wanted to know how many hours an animal was predicted to fora
 test_time<-sapply(1:1000,function(x){
   foraging_time(alpha=alpha,draw=20,step=12)
 })
-mean(test_time)
+print("Mean foraging hours:", mean(test_time),sep=" ")
 
 qplot(test_time) +ggtitle("Foraging Time (10 Days)") +xlab("Hours")
 ```
@@ -297,16 +307,17 @@ qplot(test_time) +ggtitle("Foraging Time (10 Days)") +xlab("Hours")
 
 ## Distribution of dive depths
 
-The proportion of time at each dive depth as a function of time feeding.
+When feeding, what depth do animals dive?
 
 (@eq2) 
-$$ Y_i \sim 
+
+$$
+Y_i \sim 
 
 Y_i \sim Multinomial(M)
 
 M=[m_1,m_2…m_n ]
 
-M \sim dirichlet(ρ_i) $$
+M \sim dirichlet(ρ_i) 
+$$
 
-### Suction cup tags
-Information regarding the data source
