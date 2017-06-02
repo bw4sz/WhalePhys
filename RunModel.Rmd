@@ -20,11 +20,11 @@ The proportion of time an animal is in a feeding behavioral state.
 
 (@eq1)
 
-#Correlated random walk
 
 *Process Model*
 
-$$Y_{i,t+1} \sim Multivariate Normal(d_{i,t},σ)
+$$
+Y_{i,t+1} \sim Multivariate Normal(d_{i,t},σ)
 
 d_{i,t}= Y_{i,t} + γ_(s_(i,g,t) )*T_(i,g,t)*( Y_(i,g,t)- Y_(i,g,t-1) )
 \begin{matrix}
@@ -35,16 +35,226 @@ d_{i,t}= Y_{i,t} + γ_(s_(i,g,t) )*T_(i,g,t)*( Y_(i,g,t)- Y_(i,g,t-1) )
 logit(\phi_{traveling}) = \alpha_{Behavior_{t-1}}
 $$
 
-Y_(i,g,t+1)∼ Multivariate Normal(d_(i,g,t),σ)
 
-d_(i,g,t)= Y_(i,g,t)+ γ_(s_(i,g,t) )*T_(i,g,t)*( Y_(i,g,t)- Y_(i,g,t-1) )
+```{r}
+library(tidyr)
+library(ggplot2)
+library(maptools)
+library(raster)
+library(dplyr)
+library(stringr)
+library(chron)
+library(R2jags)
 
-T_(i,g,t)=■(cosa(θ_(s_(i,g,t) ))&-sina(θ_(s_(i,g,t) ))@sina(θ_(s_(i,g,t) ))&cosa(θ_(s_(i,g,t) )))  
+newModel<-T
 
-S_(i,g,t)  ~ Multinomial(■(ϕ_(i,g,t,m)&1-ϕ_(i,g,t,m) ) )
+#read data
+mdat<-read.csv("C:/Users/Ben/Documents/DiveData/Data/Humpback Whales Megaptera novaeangliae West Antarctic Peninsula-3343066988628153526.csv")
 
-logit(ϕ_(i,g,t) )= α_(s_(i,g,t-1,m) )
-$$
+#standardize column names to match the simulation
+#Create an animal tag.
+mxy <- as(mdat, "data.frame")
+mxy$Animal<-mxy$individual.local.identifier
+mxy$x<-mxy$location.long
+mxy$y<-mxy$location.lat
+
+mxy$argos.lc<-mxy$argos.iq
+mxy$argos.iq<-NULL
+
+#grab a test animal
+mxy<-mxy[mxy$individual.local.identifier %in% c("131142"),]
+
+#empty coordinates
+mxy<-mxy[!is.na(mxy$x),]
+
+#crop by extent
+d<-SpatialPointsDataFrame(cbind(mxy$x,mxy$y),data=mxy,proj4string=CRS("+proj=longlat +datum=WGS84"))
+
+cropoly<-readShapePoly("Data/CutPolygon.shp",proj4string=CRS("+proj=longlat +datum=WGS84"))
+
+b<-d[!is.na(d %over% cropoly)[,2],]
+
+mxy<-b@data
+
+#set datestamp
+mxy$timestamp<-as.POSIXct(mxy$timestamp)
+
+#month and year columns
+mxy$Month<-months(mxy$timestamp)
+mxy$Year<-years(mxy$timestamp)
+
+#Only austral sping and summer
+mxy<-mxy[mxy$Month %in% month.name[1:7],]
+
+#remove empty timestamps
+mxy<-mxy[!is.na(mxy$timestamp),]
+
+#remove duplicates
+#mxy<-mxy[!duplicated(data.frame(mxy$timestamp,mxy$Animal)),]
+mxy<-mxy[!mxy$ETOPO1.Elevation>0,]
+```
+
+```{r}
+##Time is the beginning of the first point.
+step_length=12
+
+sxy<-split(mxy,mxy$Animal)
+
+#time diff function
+timed<-function(d,step_length){
+  d$j[1]<-0
+  for (x in 2:nrow(d)){
+    d$j[x]<-as.numeric(difftime(as.POSIXct(d$timestamp[x]),as.POSIXct(d$timestamp[x-1]),units="mins"))/(step_length*60)
+  }
+  
+  #Split out track endings
+  ends<-c(1,which(d$j>1),nrow(d))
+
+  for(w in 2:length(ends)){
+    d[ends[w-1]:ends[w],"Track"]<-w-1
+  }
+  
+  #remove tracks that are shorter than three days
+  track_time<-d %>% group_by(Track) %>% summarize(mt=difftime(max(as.POSIXct(timestamp)),min(as.POSIXct(timestamp)),units="hours")) %>% filter(mt>=24) %>% .$Track
+  
+  d<-d[d$Track %in% track_time,]
+  
+  #renumber the tracks
+  d$Track<-as.numeric(as.factor(d$Track))
+  return(d)
+  }
+
+sxy<-lapply(sxy,timed,step_length=step_length)
+
+#Format matrices for jags
+mxy<-rbind_all(sxy)
+
+######recode whales
+#mxy$Animal<-as.numeric(as.factor(mxy$Animal))
+
+sxy<-split(mxy,list(mxy$Animal,mxy$Track),drop=TRUE)
+
+sxy<-lapply(sxy,function(x){
+#How many observations in each step length segment
+x$step<-as.numeric(cut(as.POSIXct(x$timestamp),paste(step_length,"hours")))
+return(x)
+})
+
+mxy<-rbind_all(sxy)
+
+#refactor animal
+mxy$Animal<-as.numeric(as.factor(mxy$Animal))
+```
+
+```{r}
+#total number of steps per track/animal
+steps_all<-mxy %>% group_by(Animal,Track) %>% summarize(n=length(unique(step)))
+
+# give each step a label
+mxy<-mxy %>% group_by(Animal,Track,step) %>% mutate(jStep=1:n())
+
+#Cast time array
+j<-reshape2::acast(mxy,Animal~Track~step~jStep,value.var="j")
+
+#how many observations per individual in each step
+mxy$step<-factor(mxy$step,levels=1:max(steps_all$n))
+idx<-reshape2::melt(table(mxy$Animal,mxy$Track,mxy$step))
+colnames(idx)<-c("Animal","Track","step","jStep")
+idx<-reshape2::acast(data=idx,Animal~Track~step)
+
+#month array
+mxy$MonthF<-as.numeric(factor(mxy$Month,levels=month.name))
+
+MonthA<-reshape2::acast(mxy,Animal~Track~step,value.var="MonthF",fun.aggregate = min)
+MonthA[!is.finite(MonthA)]<-NA
+
+#Individuals
+ind=length(unique(mxy$Animal))
+
+#tracks per indivudal
+tracks<-mxy %>% group_by(Animal) %>% summarize(tracks=length(unique(Track))) %>% .$tracks
+
+#steps per track
+steps<-reshape2::acast(steps_all,Animal~Track,value.var="n")
+
+#obs array
+obs<-reshape2::melt(mxy,measure.vars=c("x","y"))
+obs<-reshape2::acast(obs,Animal~Track~step~jStep~variable)
+
+#argos class array
+mxy$argos.lc<-factor(mxy$argos.lc,levels=c(3,2,1,0,"A","B"))
+mxy$numargos<-as.numeric(mxy$argos.lc)
+obs_class<-reshape2::acast(mxy,Animal~Track~step~jStep,value.var="numargos")
+```
+
+
+```{r,child="Bayesian/MultiSpecies.R",eval=T}
+```
+
+```{r,eval=T}
+#source jags file
+source("Bayesian/MultiSpecies.R")
+
+#prior cov shape
+R <- diag(c(1,1))
+data=list(argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tracks,Month=MonthA,Months=max(MonthA,na.rm=T),argos_class=obs_class)
+
+#paramters to track
+pt<-c("theta","gamma","phi","alpha","state")
+
+if(newModel){
+  system.time(jagM<-jags.parallel(model.file = "Bayesian/Multi_RW.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=100,n.burnin=0,n.thin=1,DIC=FALSE))
+}
+
+```
+
+##Chains
+```{r,eval=F}
+
+#bind chains
+pc<-reshape2::melt(jagM$BUGSoutput$sims.array)
+
+rm(jagM)
+
+colnames(pc)<-c("Draw","chain","par","value")
+
+#extract parameter name
+pc$parameter<-data.frame(str_match(pc$par,"(\\w+)"))[,-1]
+
+#Extract index
+splitpc<-split(pc,pc$parameter)
+
+#single index
+splitpc[c("alpha","gamma","theta")]<-lapply(splitpc[c("alpha","gamma","theta")],function(x){
+    sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+)]"))[,3]
+    pc<-data.frame(x,Behavior=sv)
+    return(pc)
+})
+
+#double index
+
+#Three index
+splitpc[c("phi")]<-lapply(splitpc[c("phi")],function(x){
+#As matrices
+    sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+),(\\d+),(\\d+),(\\d+)]"))[,3:6]
+    colnames(sv)<-c("Animal","Track","step","Behavior")
+    pc<-data.frame(x,sv)
+})
+
+#State index
+splitpc[c("state")]<-lapply(splitpc[c("state")],function(x){
+#As matrices
+    sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+),(\\d+),(\\d+)]"))[,3:5]
+    colnames(sv)<-c("Animal","Track","step")
+    pc<-data.frame(x,sv)
+})
+
+#bind all matrices back together
+pc<-rbind_all(splitpc)
+rm(splitpc)
+
+```
+
 
 ## Distribution of dive depths
 
