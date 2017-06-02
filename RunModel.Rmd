@@ -23,18 +23,20 @@ The proportion of time an animal is in a feeding behavioral state.
 
 *Process Model*
 
-$$
-Y_{i,t+1} \sim Multivariate Normal(d_{i,t},σ)
 
-d_{i,t}= Y_{i,t} + γ_(s_(i,g,t) )*T_(i,g,t)*( Y_(i,g,t)- Y_(i,g,t-1) )
+
+$Y_{i,t+1} \sim Multivariate Normal(d_{i,t},σ)$
+
+$d_{i,t}= Y_{i,t} + γ_(s_(i,g,t) )*T_(i,g,t)*( Y_(i,g,t)- Y_(i,g,t-1) )$
+
+$$
 \begin{matrix}
   \alpha_{i,1,1} & 1-\alpha_{i,1,1} \\
   \alpha_{i,2,1} & 1-\alpha_{i,2,1} \\
 \end{matrix}
-
-logit(\phi_{traveling}) = \alpha_{Behavior_{t-1}}
-
 $$
+
+$logit(\phi_{traveling}) = \alpha_{Behavior_{t-1}}$
 
 
 ```{r,echo=F,warning=F,message=F}
@@ -299,7 +301,7 @@ For example, if we wanted to know how many hours an animal was predicted to fora
 test_time<-sapply(1:1000,function(x){
   foraging_time(alpha=alpha,draw=20,step=12)
 })
-print("Mean foraging hours:", mean(test_time),sep=" ")
+paste("Mean foraging hours:", mean(test_time),sep=" ")
 
 qplot(test_time) +ggtitle("Foraging Time (10 Days)") +xlab("Hours")
 ```
@@ -311,13 +313,9 @@ When feeding, what depth do animals dive?
 
 (@eq2) 
 
-$$
-Y_i \sim 
 
-Y_i \sim Multinomial(M)
+$Y_i \sim Multinomial(M)$
 
-M=[m_1,m_2…m_n ]
+$M=[m_1,m_2…m_n ]$
 
-M \sim dirichlet(ρ_i) 
-$$
-
+$M \sim dirichlet(ρ_i) $
