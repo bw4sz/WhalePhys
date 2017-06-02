@@ -289,6 +289,7 @@ For example, if we wanted to know how many hours an animal was predicted to fora
 test_time<-sapply(1:1000,function(x){
   foraging_time(alpha=alpha,draw=20,step=12)
 })
+mean(test_time)
 
 qplot(test_time) +ggtitle("Foraging Time (10 Days)") +xlab("Hours")
 ```
