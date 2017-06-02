@@ -200,10 +200,10 @@ R <- diag(c(1,1))
 data=list(argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tracks,Month=MonthA,Months=max(MonthA,na.rm=T),argos_class=obs_class)
 
 #paramters to track
-pt<-c("theta","gamma","phi","alpha","state")
+pt<-c("gamma","alpha")
 
 if(newModel){
-  system.time(jagM<-jags.parallel(model.file = "Bayesian/Multi_RW.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=100,n.burnin=0,n.thin=1,DIC=FALSE))
+  system.time(jagM<-jags.parallel(model.file = "Bayesian/Multi_RW.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10000,n.burnin=9000,n.thin=2,DIC=FALSE))
 }
 
 ```
@@ -225,34 +225,72 @@ pc$parameter<-data.frame(str_match(pc$par,"(\\w+)"))[,-1]
 splitpc<-split(pc,pc$parameter)
 
 #single index
-splitpc[c("alpha","gamma","theta")]<-lapply(splitpc[c("alpha","gamma","theta")],function(x){
+splitpc[c("alpha","gamma")]<-lapply(splitpc[c("alpha","gamma")],function(x){
     sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+)]"))[,3]
     pc<-data.frame(x,Behavior=sv)
     return(pc)
-})
-
-#double index
-
-#Three index
-splitpc[c("phi")]<-lapply(splitpc[c("phi")],function(x){
-#As matrices
-    sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+),(\\d+),(\\d+),(\\d+)]"))[,3:6]
-    colnames(sv)<-c("Animal","Track","step","Behavior")
-    pc<-data.frame(x,sv)
-})
-
-#State index
-splitpc[c("state")]<-lapply(splitpc[c("state")],function(x){
-#As matrices
-    sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+),(\\d+),(\\d+)]"))[,3:5]
-    colnames(sv)<-c("Animal","Track","step")
-    pc<-data.frame(x,sv)
 })
 
 #bind all matrices back together
 pc<-rbind_all(splitpc)
 rm(splitpc)
 
+```
+
+## Empirical distribution of foraging 
+
+```{r}
+alpha<-pc %>% filter(parameter=="alpha")
+alpha$Behavior<-as.character(alpha$Behavior)
+alpha$Behavior[alpha$Behavior=="1"]<-"Traveling->Traveling"
+alpha$Behavior[alpha$Behavior=="2"]<-"Foraging->Traveling"
+
+ggplot(alpha,aes(x=value)) + geom_histogram() + facet_wrap(~Behavior) + labs(x="Probability of Transition")
+
+#label previous and prediction state, treat traveling as a success and foraging as a failure in a binomial trial
+alpha[alpha$Behavior=="Traveling->Traveling","Previous_State"]<-1
+alpha[alpha$Behavior=="Foraging->Traveling","Previous_State"]<-0
+```
+
+## Time foraging as a function of time
+
+* 12 time step
+
+```{r}
+foraging_time<-function(alpha,draws,step){
+  states<-c()
+  
+  #initial state is traveling
+  states[1]<-(1)
+  
+  for(x in 2:draws){
+    
+    #probability of staying, or switching, to traveling state
+    travel_prob=alpha %>% filter(Previous_State==states[x-1]) %>% sample_n(1) %>% .$value
+    
+    #pick next state
+    states[x]<-rbinom(1,1,travel_prob)
+  }
+  
+  #total hours of foraging
+  total_foraging<-sum(states==0) * step
+return(total_foraging)
+}
+
+states<-foraging_time(alpha=alpha,draw=20,step=12)
+```
+
+This allows us to specify the hours foraging while capturing our uncertainty in behavioral states
+
+For example, if we wanted to know how many hours an animal was predicted to forage on average over a 10 day span. We can draw 100 simulations given the posterior distributions of our empirical model.
+
+```{r}
+
+test_time<-sapply(1:1000,function(x){
+  foraging_time(alpha=alpha,draw=20,step=12)
+})
+
+qplot(test_time) +ggtitle("Foraging Time (10 Days)") +xlab("Hours")
 ```
 
 
