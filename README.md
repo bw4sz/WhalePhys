@@ -5,4 +5,4 @@ Foraging behavior shapes animal health through the balance of the resources expe
 
 ## Analysis
 
-[Simulation](https://github.com/bw4sz/WhalePhys/blob/master/RunModel.html)
+[Simulation](RunModel.html)
