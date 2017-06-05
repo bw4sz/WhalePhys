@@ -70,7 +70,7 @@ cat("
     
     #for each lat and long
     #argos error
-    #ag<-
+    
     argos[i,g,t,u,1:2] ~ dmnorm(zhat[i,g,t,u,1:2],argos_prec[argos_class[i,g,t,u],1:2,1:2])
     }
     }

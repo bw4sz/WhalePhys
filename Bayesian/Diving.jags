@@ -1,7 +1,6 @@
 
     model{
     
-    #Constants
     pi <- 3.141592653589
     
     #for each if 6 argos class observation error
@@ -49,8 +48,9 @@
     #Correlation in movement change
     d[i,g,t,1:2] <- y[i,g,t,] + gamma[state[i,g,t]] * T[i,g,t,,] %*% (y[i,g,t,1:2] - y[i,g,t-1,1:2])
     
-    #Gaussian Displacement
+    #Gaussian Displacement in location
     y[i,g,t+1,1:2] ~ dmnorm(d[i,g,t,1:2],iSigma)
+
     }
     
     #Final behavior state
@@ -69,12 +69,16 @@
     
     #for each lat and long
     #argos error
-    
     argos[i,g,t,u,1:2] ~ dmnorm(zhat[i,g,t,u,1:2],argos_prec[argos_class[i,g,t,u],1:2,1:2])
+
+    #for each dive depth
+    #dive depth at time t
+    dive[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])
     }
     }
     }
     }
+
     ###Priors###
     
     #Process Variance
@@ -109,6 +113,18 @@
     lambda[1] ~ dbeta(1,1)
     lambda[2] <- 1 - lambda[1]
     
+    #Depth Priors
+    #average depth
+    depth_mu[1] ~ dnorm(0,0.0001)
+    
+    #we know that foraging dives are deeper
+    forage ~ dnorm(50,0.01)
+    depth_mu[2] <- depth_mu[1] + forage
+    
+    #depth variance
+    depth_tau[1] ~ dgamma(0.0001,0.0001)
+    depth_tau[2] ~ dgamma(0.0001,0.0001)
+
     ##Argos priors##
     #longitudinal argos precision, from Jonsen 2005, 2016, represented as precision not sd
     

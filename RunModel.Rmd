@@ -44,6 +44,8 @@ library(tidyr)
 library(ggplot2)
 library(maptools)
 library(raster)
+library(data.table)
+
 library(dplyr)
 library(stringr)
 library(chron)
@@ -54,9 +56,13 @@ opts_chunk$set(echo=F,warnings=F,messages=F)
 mytheme<-theme(axis.text.x=element_blank(),axis.ticks.x=element_blank(),axis.text.y=element_blank(),axis.ticks.y=element_blank(),axis.title.x=element_blank(),axis.title.y=element_blank(),panel.grid=element_blank())
 ```
 
-
 #read data
 ```{r}
+
+##Read in data
+##Split into Tracks
+##Format for JAGS
+
 newModel<-T
 mdat<-read.csv("C:/Users/Ben/Documents/DiveData/Data/Humpback Whales Megaptera novaeangliae West Antarctic Peninsula-3343066988628153526.csv")
 
@@ -104,9 +110,6 @@ mxy<-mxy[!mxy$ETOPO1.Elevation>0,]
 
 ggplot()+geom_path(data=mxy, aes(x=x, y=y,group=Animal),size=.5)  + borders(fill="grey90") + coord_cartesian(ylim = c(-70,-62),xlim=c(-55,-73)) + theme_bw() + mytheme + scale_fill_manual(values=rep("NA",8)) + scale_color_discrete(guide="none")
 
-```
-
-```{r}
 ##Time is the beginning of the first point.
 step_length=12
 
@@ -139,26 +142,22 @@ timed<-function(d,step_length){
 sxy<-lapply(sxy,timed,step_length=step_length)
 
 #Format matrices for jags
-mxy<-rbind_all(sxy)
-
-######recode whales
-#mxy$Animal<-as.numeric(as.factor(mxy$Animal))
+mxy<-bind_rows(sxy)
 
 sxy<-split(mxy,list(mxy$Animal,mxy$Track),drop=TRUE)
 
 sxy<-lapply(sxy,function(x){
-#How many observations in each step length segment
+
+  #How many observations in each step length segment
 x$step<-as.numeric(cut(as.POSIXct(x$timestamp),paste(step_length,"hours")))
 return(x)
 })
 
-mxy<-rbind_all(sxy)
+mxy<-bind_rows(sxy)
 
 #refactor animal
 mxy$Animal<-as.numeric(as.factor(mxy$Animal))
-```
 
-```{r}
 #total number of steps per track/animal
 steps_all<-mxy %>% group_by(Animal,Track) %>% summarize(n=length(unique(step)))
 
@@ -199,7 +198,6 @@ mxy$numargos<-as.numeric(mxy$argos.lc)
 obs_class<-reshape2::acast(mxy,Animal~Track~step~jStep,value.var="numargos")
 ```
 
-
 ```{r,child="Bayesian/Foraging.R",eval=T}
 ```
 
@@ -215,14 +213,13 @@ data=list(argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tracks,Month=Mont
 pt<-c("gamma","alpha")
 
 if(newModel){
-  system.time(jagM<-jags.parallel(model.file = "Bayesian/Foraging.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10000,n.burnin=9000,n.thin=2,DIC=FALSE))
+  system.time(jagM<-jags.parallel(model.file = "Bayesian/Foraging.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=100,n.burnin=0,n.thin=2,DIC=FALSE))
 }
 
 ```
 
 ##Chains
 ```{r,eval=T}
-
 #bind chains
 pc<-reshape2::melt(jagM$BUGSoutput$sims.array)
 
@@ -306,16 +303,278 @@ paste("Mean foraging hours:", mean(test_time),sep=" ")
 qplot(test_time) +ggtitle("Foraging Time (10 Days)") +xlab("Hours")
 ```
 
-
 ## Distribution of dive depths
 
 When feeding, what depth do animals dive?
 
 (@eq2) 
 
-
 $Y_i \sim Multinomial(M)$
 
 $M=[m_1,m_2…m_n ]$
 
 $M \sim dirichlet(ρ_i) $
+
+```{r}
+#get dive data
+
+f<-list.files("C:/Users/Ben/Dropbox/Whales/Data/Humpback",pattern="Locations",full.names=T,recursive = T)
+
+#just grab five individuals for now
+gdat<-lapply(f,function(x) read.csv(x,stringsAsFactors=F))
+gdat<-lapply(gdat,function(x){
+  x$Quality<-as.character(x$Quality)
+  return(x)
+}) 
+
+gdat<-bind_rows(gdat)
+
+#timestamp
+gdat$Date<-as.POSIXct(gdat$Date,format="%H:%M:%S %d-%b-%Y",tz="Etc/GMT+3")
+
+#get data files
+f<-list.files("C:/Users/Ben/Dropbox/Whales/Data/Humpback/",pattern="Behavior",full.names=T,recursive = T)
+  dat<-bind_rows(lapply(f,read.csv))
+  dat$GMTtime<-as.POSIXct(dat$End,format="%H:%M:%S %d-%b-%Y",tz="Etc/GMT+3")
+  
+  #local time
+  dat$timestamp<-as.POSIXct(format(dat$GMTtime,tz="Etc/GMT+3"))
+  
+  dat$Month<-months(dat$timestamp)
+  dat$Month<-factor(dat$Month,levels=month.name)
+  dat$Hour<-strftime(dat$timestamp,format="%H")
+  dat$Year<-years(dat$timestamp)
+  
+  
+  #create unique messages
+  indices<-which(dat$What=="Message")
+  counter=1
+  dat$ID<-NA
+  for (x in 1:(length(indices)-1)){
+  dat[indices[x]:indices[x+1],"ID"]<-counter
+  counter=counter+1
+  }
+  
+  dive<-dat %>% filter(What=="Dive")%>% dplyr::select(Animal=Ptt,timestamp,Hour,Month,Year, ID,Start,DepthMax,DepthMin,DurationMax)
+dive<-dive[!is.na(dive$Month),]
+    
+#remove duplicate data
+dive<-dive %>% arrange(Animal,timestamp) 
+dive<-dive[!duplicated(dive),]
+```
+
+```{r}
+##Merge with geographic data and format for JAGS
+messages<-dat %>% filter(dat$What=="Message")
+messages$timestamp<-as.POSIXct(messages$End,format="%H:%M:%S %d-%b-%Y",tz="Etc/GMT+3")
+
+#look up the time interval that best fits
+setDT(gdat)            ## convert to data.table by reference
+setDT(messages)            ## same
+
+setkey(messages, Ptt,timestamp)    ## set the column to perform the join on
+setkey(gdat,Ptt, Date)    ## same as above
+
+ans = gdat[messages, roll=Inf] ## perform rolling join
+ans<-as.data.frame(ans)
+
+message_join<-ans %>% select(Date,Animal=Ptt,Date,Quality,Latitude,Longitude,ID)
+
+mdat<-merge(dat,message_join,by="ID")
+mdat<-mdat %>% filter(What=="Dive")
+
+mdat<-mdat %>% select(ID,Animal,Latitude,Longitude,timestamp,Start,End,Date,Month,Hour,Year,DepthMax,DepthMin,Quality,DurationMax,DurationMin)
+
+#only focus on Antarctic Peninsula
+mdat<-mdat[!is.na(mdat$Latitude),]
+
+#crop by extent
+d<-SpatialPointsDataFrame(cbind(mdat$Longitude,mdat$Latitude),data=data.frame(mdat),proj4string=CRS("+proj=longlat +datum=WGS84"))
+
+cropoly<-readShapePoly("Data/CutPolygon.shp",proj4string=CRS("+proj=longlat +datum=WGS84"))
+
+b<-d[!is.na(d %over% cropoly)[,2],]
+
+mdat<-b@data
+
+#view data
+ggplot(data=mdat)+geom_path(aes(x=Longitude, y=Latitude,group=Animal),size=.5) + geom_point(aes(x=Longitude, y=Latitude,col=DepthMax))+ borders(fill="grey90") + coord_cartesian(ylim = range(mdat$Latitude),xlim=range(mdat$Longitude)) + theme_bw() + mytheme + scale_color_continuous(low="blue",high="red")
+
+##Time is the beginning of the first point.
+step_length=12
+
+sxy<-split(mdat,mdat$Animal)
+
+#time diff function
+timed<-function(d,step_length){
+  d$j[1]<-0
+  for (x in 2:nrow(d)){
+    d$j[x]<-as.numeric(difftime(as.POSIXct(d$timestamp[x]),as.POSIXct(d$timestamp[x-1]),units="mins"))/(step_length*60)
+  }
+  
+  #Split out track endings
+  ends<-c(1,which(d$j>1),nrow(d))
+
+  for(w in 2:length(ends)){
+    d[ends[w-1]:ends[w],"Track"]<-w-1
+  }
+  
+  #remove tracks that are shorter than three days
+  track_time<-d %>% group_by(Track) %>% summarize(mt=difftime(max(as.POSIXct(timestamp)),min(as.POSIXct(timestamp)),units="hours")) %>% filter(mt>=24) %>% .$Track
+  
+  d<-d[d$Track %in% track_time,]
+  
+  #renumber the tracks
+  d$Track<-as.numeric(as.factor(d$Track))
+  return(d)
+  }
+
+sxy<-lapply(sxy,timed,step_length=step_length)
+
+#Format matrices for jags
+mdat<-bind_rows(sxy)
+
+sxy<-split(mdat,list(mdat$Animal,mdat$Track),drop=TRUE)
+
+sxy<-lapply(sxy,function(x){
+#How many observations in each step length segment
+x$step<-as.numeric(cut(as.POSIXct(x$timestamp),paste(step_length,"hours")))
+return(x)
+})
+
+mdat<-bind_rows(sxy)
+
+###################################################
+#filter by just first day for the moment
+mdat<-mdat %>% group_by(Animal) %>% do(head(.,100))
+####################################################
+
+#mdat<-mdat %>% filter(Animal %in% c("131127","131136"))
+
+#refactor animal
+mdat$Animal<-as.numeric(as.factor(mdat$Animal))
+
+##Split into format for JAGS
+
+#total number of steps per track/animal
+steps_all<-mdat %>% group_by(Animal,Track) %>% summarize(n=length(unique(step)))
+
+# give each step a label
+mdat<-mdat %>% group_by(Animal,Track,step) %>% mutate(jStep=1:n())
+
+#Cast time array
+j<-reshape2::acast(mdat,Animal~Track~step~jStep,value.var="j")
+
+#how many observations per individual in each step
+mdat$step<-factor(mdat$step,levels=1:max(steps_all$n))
+idx<-reshape2::melt(table(mdat$Animal,mdat$Track,mdat$step))
+colnames(idx)<-c("Animal","Track","step","jStep")
+idx<-reshape2::acast(data=idx,Animal~Track~step)
+
+#Individuals
+ind=length(unique(mdat$Animal))
+
+#tracks per indivudal
+tracks<-mdat %>% group_by(Animal) %>% summarize(tracks=length(unique(Track))) %>% .$tracks
+
+#steps per track
+steps<-reshape2::acast(steps_all,Animal~Track,value.var="n")
+
+#obs array
+obs<-reshape2::melt(mdat,measure.vars=c("Longitude","Latitude"))
+obs<-reshape2::acast(obs,Animal~Track~step~jStep~variable,fun.aggregate = mean)
+
+#argos class array
+mdat$argos.lc<-factor(mdat$Quality,levels=c(3,2,1,0,"A","B"))
+mdat$numargos<-as.numeric(mdat$argos.lc)
+obs_class<-reshape2::acast(mdat,Animal~Track~step~jStep,value.var="numargos",fun.aggregate = min)
+
+obs_class[!is.finite(obs_class)]<-NA
+
+#dive array
+divearray<-reshape2::acast(mdat,Animal~Track~step~jStep,value.var="DepthMax",fun.aggregate = max)
+
+#fill the empty values
+divearray[!is.finite(divearray)]<-NA
+```
+
+```{r,child="Bayesian/Diving.R",eval=T}
+```
+
+```{r,eval=T}
+#source jags file
+source("Bayesian/Diving.R")
+
+#prior cov shape
+R <- diag(c(1,1))
+data=list(dive=divearray,argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tracks,argos_class=obs_class)
+
+#paramters to track
+pt<-c("alpha","depth_mu","depth_tau")
+
+if(newModel){
+  system.time(jagM<-jags.parallel(model.file = "Bayesian/Diving.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10000,n.burnin=9000,n.thin=2,DIC=FALSE))
+}
+
+```
+
+##Chains
+```{r,eval=T}
+#bind chains
+pc_dive<-reshape2::melt(jagM$BUGSoutput$sims.array)
+colnames(pc_dive)<-c("Draw","chain","par","value")
+
+#extract parameter name
+pc_dive$parameter<-data.frame(str_match(pc_dive$par,"(\\w+)"))[,-1]
+
+#Extract index
+splitpc<-split(pc_dive,pc_dive$parameter)
+
+#single index
+splitpc<-lapply(splitpc,function(x){
+    sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+)]"))[,3]
+    pc<-data.frame(x,Behavior=sv)
+    return(pc)
+}) 
+
+#bind all matrices back together
+pc_dive<-bind_rows(splitpc)
+rm(splitpc)
+
+ggplot(pc_dive,aes(x=Draw,y=value,col=as.factor(chain))) + geom_line() + facet_wrap(~par,scales="free")
+
+```
+
+## Empirical distribution of foraging 
+
+```{r}
+alpha<-pc_dive %>% filter(parameter=="alpha")
+alpha$Behavior<-as.character(alpha$Behavior)
+alpha$Behavior[alpha$Behavior=="1"]<-"Traveling->Traveling"
+alpha$Behavior[alpha$Behavior=="2"]<-"Foraging->Traveling"
+
+ggplot(alpha,aes(x=value)) + geom_histogram() + facet_wrap(~Behavior) + labs(x="Probability of Transition")
+
+#label previous and prediction state, treat traveling as a success and foraging as a failure in a binomial trial
+alpha[alpha$Behavior=="Traveling->Traveling","Previous_State"]<-1
+alpha[alpha$Behavior=="Foraging->Traveling","Previous_State"]<-0
+```
+
+##Distribution of dive depths
+
+```{r}
+divep<-pc_dive %>% filter(parameter %in% c("depth_mu","depth_tau"))
+ggplot(divep,aes(x=value)) + geom_histogram() + facet_wrap(~Behavior)  
+
+## Simulate dive depth
+
+depth_mu1<-pc_dive %>% filter(parameter %in% c("depth_mu"),Behavior==1)
+depth_mu2<-pc_dive %>% filter(parameter %in% c("depth_mu"),Behavior==2)
+depth_tau1<-pc_dive %>% filter(parameter %in% c("depth_tau"),Behavior==1)
+depth_tau2<-pc_dive %>% filter(parameter %in% c("depth_tau"),Behavior==2)
+
+travel_dives<-data.frame(MaxDepth=rnorm(1e5,depth_mu1$value,depth_tau1$value),Behavior="Traveling")
+forage_dives<-data.frame(MaxDepth=rnorm(1e5,depth_mu2$value,depth_tau2$value),Behavior="Foraging")
+pred_dives<-bind_rows(travel_dives,forage_dives)
+ggplot(pred_dives,aes(x=MaxDepth,fill=Behavior)) + geom_histogram()
+```
