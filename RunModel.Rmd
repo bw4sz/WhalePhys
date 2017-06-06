@@ -60,6 +60,8 @@ library(chron)
 library(R2jags)
 library(knitr)
 
+newModel=T
+
 opts_chunk$set(echo=F,warning=F,message=F,fig.width=11)
 
 mytheme<-theme(axis.text.x=element_blank(),axis.ticks.x=element_blank(),axis.text.y=element_blank(),axis.ticks.y=element_blank(),axis.title.x=element_blank(),axis.title.y=element_blank(),panel.grid=element_blank())
@@ -131,11 +133,6 @@ message_join<-ans %>% select(Date,Animal=Ptt,Date,Quality,Latitude,Longitude,ID)
 
 mdat<-merge(dat,message_join,by="ID")
 mdat<-mdat %>% filter(What=="Dive")
-
-##Dates don't quite match
-gdat %>% filter(Ptt=="131111")
-mdat %>% filter(Animal=="131111",ID==1)
-messages %>% filter(Ptt=="131111",ID==1)
 
 #The maxiumum dive depth based on the geographic message
 mdat<-mdat %>% select(ID,Animal,Latitude,Longitude,timestamp,Date,Month,Hour,Year,DepthMax,Quality) 
@@ -247,7 +244,7 @@ obs_class[!is.finite(obs_class)]<-NA
 maxdive<-reshape2::acast(mdat,Animal~Track~step~jStep,value.var="DepthMax",fun.aggregate = mean)
 
 #fill the empty values
-divearray[!is.finite(divearray)]<-NA
+maxdive[!is.finite(maxdive)]<-NA
 
 #average number of dives
 divecount<-reshape2::acast(mdat,Animal~Track~step,value.var="DepthMax",fun.aggregate = length)
@@ -266,13 +263,13 @@ source("Bayesian/Diving.R")
 
 #prior cov shape
 R <- diag(c(1,1))
-data=list(dive=divearray,argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tracks,argos_class=obs_class)
+data=list(divecount=divecount,dive=maxdive,argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tracks,argos_class=obs_class)
 
 #paramters to track
 pt<-c("alpha","depth_mu","depth_tau","dive_new","state","lambda")
 
 if(newModel){
-  system.time(diving<-jags.parallel(model.file = "Bayesian/Diving.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=1000,n.burnin=900,n.thin=2,DIC=FALSE))
+  system.time(diving<-jags.parallel(model.file = "Bayesian/Diving.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10000,n.burnin=9500,n.thin=2,DIC=FALSE))
 }
 
 ```
@@ -290,14 +287,14 @@ pc_dive$parameter<-data.frame(str_match(pc_dive$par,"(\\w+)"))[,-1]
 splitpc<-split(pc_dive,pc_dive$parameter)
 
 #single index
-splitpc[c("alpha","depth_mu","depth_tau")]<-lapply(splitpc[c("alpha","depth_mu","depth_tau")],function(x){
+splitpc[c("alpha","depth_mu","depth_tau","lambda")]<-lapply(splitpc[c("alpha","depth_mu","depth_tau","lambda")],function(x){
     sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+)]"))[,3]
     pc<-data.frame(x,Behavior=sv)
     return(pc)
 }) 
 
 #3 index
-splitpc[c("state","lambda")]<-lapply(splitpc[c("state","lambda")],function(x){
+splitpc[c("state")]<-lapply(splitpc[c("state")],function(x){
     sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+),(\\d+),(\\d+)"))[,3:5]
     colnames(sv)<-c("Animal","Track","step")
     pc<-data.frame(x,sv)
@@ -376,7 +373,8 @@ paste("Mean foraging hours:", mean(test_time),sep=" ")
 qplot(test_time) +ggtitle("Foraging Time (10 Days)") +xlab("Hours")
 ```
 
-##Distribution of dive depths
+
+##Distribution of average max dive depths
 
 ```{r}
 divep<-pc_dive %>% filter(parameter %in% c("depth_mu","depth_tau"))
@@ -393,6 +391,24 @@ pred_dives<-bind_rows(travel_dives,forage_dives)
 ggplot(pred_dives) + geom_density(alpha=0.5,aes(x=MaxDepth,fill=Behavior)) + geom_density(data=mdat,aes(x=DepthMax),col="black",size=1) + theme_bw() 
 
 ggplot(pc_dive[pc_dive$parameter=="dive_new",])+  geom_density(aes(x=value,fill=par)) + geom_density(data=mdat,aes(x=DepthMax),col="black",size=1.5) + theme_bw() 
+```
+
+##Distribution of average dive counts
+
+```{r}
+
+## Simulate dive counts
+count_lambda1<-pc_dive %>% filter(parameter %in% c("lambda"),Behavior==1)
+count_lambda2<-pc_dive %>% filter(parameter %in% c("lambda"),Behavior==2)
+
+travel_counts<-data.frame(Counts=rpois(1e5,count_lambda1$value),Behavior="Traveling")
+forage_counts<-data.frame(Counts=rpois(1e5,count_lambda2$value),Behavior="Foraging")
+
+#calculate observed
+obs_count<-mdat %>% group_by(Animal,Track,step) %>% summarize(Counts=n())
+
+pred_counts<-bind_rows(travel_counts,forage_counts)
+ggplot(pred_counts) + geom_density(alpha=0.5,aes(x=Counts,fill=Behavior)) + geom_density(data=obs_count,aes(x=Counts),col="black",size=1) + theme_bw() 
 ```
 
 ## Posterior checks

@@ -53,7 +53,7 @@ cat("
     y[i,g,t+1,1:2] ~ dmnorm(d[i,g,t,1:2],iSigma)
 
     #number of dives
-    divecount[i,g,t] ~ dpois(lambda[state[i,g,t]])
+    divecount[i,g,t] ~ dpois(lambda_count[state[i,g,t]])
 
     }
     
@@ -133,8 +133,9 @@ cat("
     depth_tau[2] ~ dgamma(0.0001,0.0001)
 
     #Dive counts, there can't be more than about 20 dives in a 6 hour period.
-    lambda[1] ~ dunif(0,20)
-    lambda[2] ~ dunif(0,20)
+    lambda_count[1] ~ dunif(0,20)
+    lambda_count[2] ~ dunif(0,20)
+
     ##Argos priors##
     #longitudinal argos precision, from Jonsen 2005, 2016, represented as precision not sd
     
