@@ -34,7 +34,19 @@ $$
 \end{matrix}
 $$
 
+
 $$logit(\phi_{traveling}) = \alpha_{Behavior_{t-1}}$$
+The behavior at time t of individual i on track g is a discrete draw.
+$$S_{i,g,t} \sim Cat(\phi_{traveling},\phi_{foraging})$$
+
+Dive information is a mixture model based on behavior (S)
+
+$Average dive depth (\psi)$
+$$ \psi \sim Normal(dive_{\mu_S},dive_{\tau_S})$$
+
+$\text{Average number of dives }(\omega)$
+$$ \omega \sim Poisson(\lambda_S)$$
+
 ```{r,echo=F,warning=F,message=F}
 library(tidyr)
 library(ggplot2)
@@ -52,265 +64,6 @@ opts_chunk$set(echo=F,warning=F,message=F,fig.width=11)
 
 mytheme<-theme(axis.text.x=element_blank(),axis.ticks.x=element_blank(),axis.text.y=element_blank(),axis.ticks.y=element_blank(),axis.title.x=element_blank(),axis.title.y=element_blank(),panel.grid=element_blank())
 ```
-
-#read data
-```{r}
-
-##Read in data
-##Split into Tracks
-##Format for JAGS
-
-newModel<-T
-mdat<-read.csv("C:/Users/Ben/Documents/DiveData/Data/Humpback Whales Megaptera novaeangliae West Antarctic Peninsula-3343066988628153526.csv")
-
-#standardize column names to match the simulation
-#Create an animal tag.
-mxy <- as(mdat, "data.frame")
-mxy$Animal<-mxy$individual.local.identifier
-mxy$x<-mxy$location.long
-mxy$y<-mxy$location.lat
-
-mxy$argos.lc<-mxy$argos.iq
-mxy$argos.iq<-NULL
-
-#grab a test animal
-mxy<-mxy[mxy$individual.local.identifier %in% c("131142"),]
-
-#empty coordinates
-mxy<-mxy[!is.na(mxy$x),]
-
-#crop by extent
-d<-SpatialPointsDataFrame(cbind(mxy$x,mxy$y),data=mxy,proj4string=CRS("+proj=longlat +datum=WGS84"))
-
-cropoly<-readShapePoly("Data/CutPolygon.shp",proj4string=CRS("+proj=longlat +datum=WGS84"))
-
-b<-d[!is.na(d %over% cropoly)[,2],]
-
-mxy<-b@data
-
-#set datestamp
-mxy$timestamp<-as.POSIXct(mxy$timestamp)
-
-#month and year columns
-mxy$Month<-months(mxy$timestamp)
-mxy$Year<-years(mxy$timestamp)
-
-#Only austral sping and summer
-mxy<-mxy[mxy$Month %in% month.name[1:7],]
-
-#remove empty timestamps
-mxy<-mxy[!is.na(mxy$timestamp),]
-
-#remove duplicates
-#mxy<-mxy[!duplicated(data.frame(mxy$timestamp,mxy$Animal)),]
-mxy<-mxy[!mxy$ETOPO1.Elevation>0,]
-
-ggplot()+geom_path(data=mxy, aes(x=x, y=y,group=Animal),size=.5)  + borders(fill="grey90") + coord_cartesian(ylim = range(mxy$y),xlim=range(mxy$x)) + theme_bw() + mytheme  + scale_color_discrete(guide="none")
-
-##Time is the beginning of the first point.
-step_length=6
-
-sxy<-split(mxy,mxy$Animal)
-
-#time diff function
-timed<-function(d,step_length){
-  d$j[1]<-0
-  for (x in 2:nrow(d)){
-    d$j[x]<-as.numeric(difftime(as.POSIXct(d$timestamp[x]),as.POSIXct(d$timestamp[x-1]),units="mins"))/(step_length*60)
-  }
-  
-  #Split out track endings
-  ends<-c(1,which(d$j>1),nrow(d))
-
-  for(w in 2:length(ends)){
-    d[ends[w-1]:ends[w],"Track"]<-w-1
-  }
-  
-  #remove tracks that are shorter than three days
-  track_time<-d %>% group_by(Track) %>% summarize(mt=difftime(max(as.POSIXct(timestamp)),min(as.POSIXct(timestamp)),units="hours")) %>% filter(mt>=24) %>% .$Track
-  
-  d<-d[d$Track %in% track_time,]
-  
-  #renumber the tracks
-  d$Track<-as.numeric(as.factor(d$Track))
-  return(d)
-  }
-
-sxy<-lapply(sxy,timed,step_length=step_length)
-
-#Format matrices for jags
-mxy<-bind_rows(sxy)
-
-sxy<-split(mxy,list(mxy$Animal,mxy$Track),drop=TRUE)
-
-sxy<-lapply(sxy,function(x){
-
-  #How many observations in each step length segment
-x$step<-as.numeric(cut(as.POSIXct(x$timestamp),paste(step_length,"hours")))
-return(x)
-})
-
-mxy<-bind_rows(sxy)
-
-#refactor animal
-mxy$Animal<-as.numeric(as.factor(mxy$Animal))
-
-#total number of steps per track/animal
-steps_all<-mxy %>% group_by(Animal,Track) %>% summarize(n=length(unique(step)))
-
-# give each step a label
-mxy<-mxy %>% group_by(Animal,Track,step) %>% mutate(jStep=1:n())
-
-#Cast time array
-j<-reshape2::acast(mxy,Animal~Track~step~jStep,value.var="j")
-
-#how many observations per individual in each step
-mxy$step<-factor(mxy$step,levels=1:max(steps_all$n))
-idx<-reshape2::melt(table(mxy$Animal,mxy$Track,mxy$step))
-colnames(idx)<-c("Animal","Track","step","jStep")
-idx<-reshape2::acast(data=idx,Animal~Track~step)
-
-#month array
-mxy$MonthF<-as.numeric(factor(mxy$Month,levels=month.name))
-
-MonthA<-reshape2::acast(mxy,Animal~Track~step,value.var="MonthF",fun.aggregate = min)
-MonthA[!is.finite(MonthA)]<-NA
-
-#Individuals
-ind=length(unique(mxy$Animal))
-
-#tracks per indivudal
-tracks<-mxy %>% group_by(Animal) %>% summarize(tracks=length(unique(Track))) %>% .$tracks
-
-#steps per track
-steps<-reshape2::acast(steps_all,Animal~Track,value.var="n")
-
-#obs array
-obs<-reshape2::melt(mxy,measure.vars=c("x","y"))
-obs<-reshape2::acast(obs,Animal~Track~step~jStep~variable)
-
-#argos class array
-mxy$argos.lc<-factor(mxy$argos.lc,levels=c(3,2,1,0,"A","B"))
-mxy$numargos<-as.numeric(mxy$argos.lc)
-obs_class<-reshape2::acast(mxy,Animal~Track~step~jStep,value.var="numargos")
-```
-
-```{r,child="Bayesian/Foraging.R",eval=T}
-```
-
-```{r,eval=T}
-#source jags file
-source("Bayesian/Foraging.R")
-
-#prior cov shape
-R <- diag(c(1,1))
-data=list(argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tracks,Month=MonthA,Months=max(MonthA,na.rm=T),argos_class=obs_class)
-
-#paramters to track
-pt<-c("gamma","alpha")
-
-if(newModel){
-  system.time(jagM<-jags.parallel(model.file = "Bayesian/Foraging.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=20000,n.burnin=19000,n.thin=2,DIC=FALSE))
-}
-
-```
-
-##Chains
-```{r,eval=T}
-#bind chains
-pc<-reshape2::melt(jagM$BUGSoutput$sims.array)
-
-rm(jagM)
-
-colnames(pc)<-c("Draw","chain","par","value")
-
-#extract parameter name
-pc$parameter<-data.frame(str_match(pc$par,"(\\w+)"))[,-1]
-
-#Extract index
-splitpc<-split(pc,pc$parameter)
-
-#single index
-splitpc[c("alpha","gamma")]<-lapply(splitpc[c("alpha","gamma")],function(x){
-    sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+)]"))[,3]
-    pc<-data.frame(x,Behavior=sv)
-    return(pc)
-})
-
-#bind all matrices back together
-pc<-rbind_all(splitpc)
-rm(splitpc)
-
-```
-
-## Empirical distribution of foraging 
-
-```{r}
-alpha<-pc %>% filter(parameter=="alpha")
-alpha$Behavior<-as.character(alpha$Behavior)
-alpha$Behavior[alpha$Behavior=="1"]<-"Traveling->Traveling"
-alpha$Behavior[alpha$Behavior=="2"]<-"Foraging->Traveling"
-
-ggplot(alpha,aes(x=value)) + geom_histogram() + facet_wrap(~Behavior) + labs(x="Probability of Transition")
-
-#label previous and prediction state, treat traveling as a success and foraging as a failure in a binomial trial
-alpha[alpha$Behavior=="Traveling->Traveling","Previous_State"]<-1
-alpha[alpha$Behavior=="Foraging->Traveling","Previous_State"]<-0
-```
-
-## Time foraging as a function of time
-
-* 12 time step
-
-```{r}
-foraging_time<-function(alpha,draws,step){
-  states<-c()
-  
-  #initial state is traveling
-  states[1]<-(1)
-  
-  for(x in 2:draws){
-    
-    #probability of staying, or switching, to traveling state
-    travel_prob=alpha %>% filter(Previous_State==states[x-1]) %>% sample_n(1) %>% .$value
-    
-    #pick next state
-    states[x]<-rbinom(1,1,travel_prob)
-  }
-  
-  #total hours of foraging
-  total_foraging<-sum(states==0) * step
-return(total_foraging)
-}
-
-states<-foraging_time(alpha=alpha,draw=20,step=12)
-```
-
-This allows us to specify the hours foraging while capturing our uncertainty in behavioral states
-
-For example, if we wanted to know how many hours an animal was predicted to forage on average over a 10 day span. We can draw 100 simulations given the posterior distributions of our empirical model.
-
-```{r}
-
-test_time<-sapply(1:1000,function(x){
-  foraging_time(alpha=alpha,draw=20,step=12)
-})
-paste("Mean foraging hours:", mean(test_time),sep=" ")
-
-qplot(test_time) +ggtitle("Foraging Time (10 Days)") +xlab("Hours")
-```
-
-## Distribution of dive depths
-
-When feeding, what depth do animals dive?
-
-(@eq2) 
-
-$Y_i \sim Multinomial(M)$
-
-$M=[m_1,m_2…m_n ]$
-
-$M \sim dirichlet(ρ_i) $
 
 ```{r}
 #get dive data
@@ -490,11 +243,18 @@ obs_class<-reshape2::acast(mdat,Animal~Track~step~jStep,value.var="numargos",fun
 
 obs_class[!is.finite(obs_class)]<-NA
 
-#dive array
-divearray<-reshape2::acast(mdat,Animal~Track~step~jStep,value.var="DepthMax",fun.aggregate = max)
+#average dive depth array
+maxdive<-reshape2::acast(mdat,Animal~Track~step~jStep,value.var="DepthMax",fun.aggregate = mean)
 
 #fill the empty values
 divearray[!is.finite(divearray)]<-NA
+
+#average number of dives
+divecount<-reshape2::acast(mdat,Animal~Track~step,value.var="DepthMax",fun.aggregate = length)
+
+#no dives, fill empty
+divecount[divecount==0]<-NA
+
 ```
 
 ```{r,child="Bayesian/Diving.R",eval=T}
@@ -509,10 +269,10 @@ R <- diag(c(1,1))
 data=list(dive=divearray,argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tracks,argos_class=obs_class)
 
 #paramters to track
-pt<-c("alpha","depth_mu","depth_tau","dive_new","state")
+pt<-c("alpha","depth_mu","depth_tau","dive_new","state","lambda")
 
 if(newModel){
-  system.time(diving<-jags.parallel(model.file = "Bayesian/Diving.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=5000,n.burnin=4000,n.thin=2,DIC=FALSE))
+  system.time(diving<-jags.parallel(model.file = "Bayesian/Diving.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=1000,n.burnin=900,n.thin=2,DIC=FALSE))
 }
 
 ```
@@ -537,7 +297,7 @@ splitpc[c("alpha","depth_mu","depth_tau")]<-lapply(splitpc[c("alpha","depth_mu",
 }) 
 
 #3 index
-splitpc[c("state")]<-lapply(splitpc[c("state")],function(x){
+splitpc[c("state","lambda")]<-lapply(splitpc[c("state","lambda")],function(x){
     sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+),(\\d+),(\\d+)"))[,3:5]
     colnames(sv)<-c("Animal","Track","step")
     pc<-data.frame(x,sv)
@@ -572,6 +332,48 @@ ggplot(alpha,aes(x=value)) + geom_histogram() + facet_wrap(~Behavior) + labs(x="
 #label previous and prediction state, treat traveling as a success and foraging as a failure in a binomial trial
 alpha[alpha$Behavior=="Traveling->Traveling","Previous_State"]<-1
 alpha[alpha$Behavior=="Foraging->Traveling","Previous_State"]<-0
+```
+
+### Time foraging as a function of time
+
+* 12 time step
+
+```{r}
+foraging_time<-function(alpha,draws,step){
+  states<-c()
+  
+  #initial state is traveling
+  states[1]<-(1)
+  
+  for(x in 2:draws){
+    
+    #probability of staying, or switching, to traveling state
+    travel_prob=alpha %>% filter(Previous_State==states[x-1]) %>% sample_n(1) %>% .$value
+    
+    #pick next state
+    states[x]<-rbinom(1,1,travel_prob)
+  }
+  
+  #total hours of foraging
+  total_foraging<-sum(states==0) * step
+return(total_foraging)
+}
+
+states<-foraging_time(alpha=alpha,draw=20,step=12)
+```
+
+This allows us to specify the hours foraging while capturing our uncertainty in behavioral states
+
+For example, if we wanted to know how many hours an animal was predicted to forage on average over a 10 day span. We can draw 100 simulations given the posterior distributions of our empirical model.
+
+```{r}
+
+test_time<-sapply(1:1000,function(x){
+  foraging_time(alpha=alpha,draw=20,step=12)
+})
+paste("Mean foraging hours:", mean(test_time),sep=" ")
+
+qplot(test_time) +ggtitle("Foraging Time (10 Days)") +xlab("Hours")
 ```
 
 ##Distribution of dive depths

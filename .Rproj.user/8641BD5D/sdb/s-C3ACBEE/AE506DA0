@@ -1,0 +1,21 @@
+{
+    "collab_server" : "",
+    "contents" : "---\ntitle: \"Simulation\"\nauthor: \"Ben Weinstein\"\ndate: \"June 5, 2017\"\noutput: html_document\n---\n\n# Aim\n\n# Input Data\n\nEmpirical estimates of behavior allocation ($\\alpha$)\nEmpirical estimates of dive depth ($dive_\\mu$, $dive_\\tau$)\nLunges per dive depth\nEnergetic effort per lunge\nKrill distribution\nEnergetic gain per lunge\n\n```{r}\n\n#Simulation ID\nsimid<-runif(1,0,10000000)\n\n#format parameter sheet\n\ngenerate_parameters<-function(alpha,depth_mu,depth_tau){\n  \n  \n  #time foraging\n  \n  \n  #Average dive depth\n  divedepth<-rnorm(depth_mu,depth_tau)\n  \n  #Energetic gain per lunge\n  \n  \n  #Energetic cost per lunge\n  \n  \n  #Krill Distribution\n  \n  \n  data.frame(simid,)\n}\n\nsimulation<-function(params){\n  \n  #simulation gets a unique ID\n  \n  #Foraging hours\n  fhours<-sim_fhours()\n  \n  for(x in step_length){\n    #Dives \n    dives[x]<-sim_dive()\n    \n    #Lunges\n    lunges[x]<-sim_lunges(dives)\n    \n    #gain per lunge\n    gain_lunge[x]<-sim_lgain(lunges)\n    \n    #costs per lunche\n    cost_lunge[x]<-sim_lcost(lunges)\n    \n  }\n  \n  out<-data.frame(time=1:fhours,dives=dives,lunges,gain_lunge,cost_lunge)\n  \n  #output parameter table\n  params\n  #\n  \n}\n\n```\n",
+    "created" : 1496697890923.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "363121040",
+    "id" : "AE506DA0",
+    "lastKnownWriteTime" : 1496768877,
+    "last_content_update" : 1496768877426,
+    "path" : "~/WhalePhys/Simulation.Rmd",
+    "project_path" : "Simulation.Rmd",
+    "properties" : {
+        "tempName" : "Untitled1"
+    },
+    "relative_order" : 4,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_markdown"
+}
