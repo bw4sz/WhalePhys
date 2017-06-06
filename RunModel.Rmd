@@ -25,9 +25,9 @@ The proportion of time an animal is in a feeding behavioral state.
 
 
 
-$Y_{i,t+1} \sim Multivariate Normal(d_{i,t},σ)$
+$$Y_{i,t+1} \sim Multivariate Normal(d_{i,t},σ)$$
 
-$d_{i,t}= Y_{i,t} + γ_(s_(i,g,t) )*T_(i,g,t)*( Y_(i,g,t)- Y_(i,g,t-1) )$
+$$d_{i,t}= Y_{i,t} + γ_(s_(i,g,t) )*T_(i,g,t)*( Y_(i,g,t)- Y_(i,g,t-1) )$$
 
 $$
 \begin{matrix}
@@ -36,7 +36,7 @@ $$
 \end{matrix}
 $$
 
-$logit(\phi_{traveling}) = \alpha_{Behavior_{t-1}}$
+$$logit(\phi_{traveling}) = \alpha_{Behavior_{t-1}}$$
 
 
 ```{r,echo=F,warning=F,message=F}
@@ -52,7 +52,8 @@ library(chron)
 library(R2jags)
 library(knitr)
 
-opts_chunk$set(echo=F,warnings=F,messages=F)
+opts_chunk$set(echo=F,warning=F,message=F,fig.width=11)
+
 mytheme<-theme(axis.text.x=element_blank(),axis.ticks.x=element_blank(),axis.text.y=element_blank(),axis.ticks.y=element_blank(),axis.title.x=element_blank(),axis.title.y=element_blank(),panel.grid=element_blank())
 ```
 
@@ -108,7 +109,7 @@ mxy<-mxy[!is.na(mxy$timestamp),]
 #mxy<-mxy[!duplicated(data.frame(mxy$timestamp,mxy$Animal)),]
 mxy<-mxy[!mxy$ETOPO1.Elevation>0,]
 
-ggplot()+geom_path(data=mxy, aes(x=x, y=y,group=Animal),size=.5)  + borders(fill="grey90") + coord_cartesian(ylim = c(-70,-62),xlim=c(-55,-73)) + theme_bw() + mytheme + scale_fill_manual(values=rep("NA",8)) + scale_color_discrete(guide="none")
+ggplot()+geom_path(data=mxy, aes(x=x, y=y,group=Animal),size=.5)  + borders(fill="grey90") + coord_cartesian(ylim = range(mdat$Latitude),xlim=range(mdat$Longitude)) + theme_bw() + mytheme + scale_fill_manual(values=rep("NA",8)) + scale_color_discrete(guide="none")
 
 ##Time is the beginning of the first point.
 step_length=12
@@ -213,7 +214,7 @@ data=list(argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tracks,Month=Mont
 pt<-c("gamma","alpha")
 
 if(newModel){
-  system.time(jagM<-jags.parallel(model.file = "Bayesian/Foraging.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=100,n.burnin=0,n.thin=2,DIC=FALSE))
+  system.time(jagM<-jags.parallel(model.file = "Bayesian/Foraging.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=20000,n.burnin=19000,n.thin=2,DIC=FALSE))
 }
 
 ```
@@ -337,25 +338,24 @@ f<-list.files("C:/Users/Ben/Dropbox/Whales/Data/Humpback/",pattern="Behavior",fu
   dat<-bind_rows(lapply(f,read.csv))
   dat$GMTtime<-as.POSIXct(dat$End,format="%H:%M:%S %d-%b-%Y",tz="Etc/GMT+3")
   
-  #local time
-  dat$timestamp<-as.POSIXct(format(dat$GMTtime,tz="Etc/GMT+3"))
+#local time
+dat$timestamp<-as.POSIXct(format(dat$GMTtime,tz="Etc/GMT+3"))
+
+dat$Month<-months(dat$timestamp)
+dat$Month<-factor(dat$Month,levels=month.name)
+dat$Hour<-strftime(dat$timestamp,format="%H")
+dat$Year<-years(dat$timestamp)
   
-  dat$Month<-months(dat$timestamp)
-  dat$Month<-factor(dat$Month,levels=month.name)
-  dat$Hour<-strftime(dat$timestamp,format="%H")
-  dat$Year<-years(dat$timestamp)
-  
-  
-  #create unique messages
-  indices<-which(dat$What=="Message")
-  counter=1
-  dat$ID<-NA
-  for (x in 1:(length(indices)-1)){
-  dat[indices[x]:indices[x+1],"ID"]<-counter
-  counter=counter+1
-  }
-  
-  dive<-dat %>% filter(What=="Dive")%>% dplyr::select(Animal=Ptt,timestamp,Hour,Month,Year, ID,Start,DepthMax,DepthMin,DurationMax)
+#create unique messages
+indices<-which(dat$What=="Message")
+counter=1
+dat$ID<-NA
+for (x in 1:(length(indices)-1)){
+dat[indices[x]:indices[x+1],"ID"]<-counter
+counter=counter+1
+}
+
+dive<-dat %>% filter(What=="Dive")%>% dplyr::select(Animal=Ptt,timestamp,Hour,Month,Year, ID,Start,DepthMax,DepthMin,DurationMax)
 dive<-dive[!is.na(dive$Month),]
     
 #remove duplicate data
@@ -378,15 +378,21 @@ setkey(gdat,Ptt, Date)    ## same as above
 ans = gdat[messages, roll=Inf] ## perform rolling join
 ans<-as.data.frame(ans)
 
+
+##Dates don't quite match
+gdat %>% filter(Ptt=="131111")
+mdat %>% filter(Animal=="131111",ID==1)
+messages %>% filter(Ptt=="131111",ID==1)
+
 message_join<-ans %>% select(Date,Animal=Ptt,Date,Quality,Latitude,Longitude,ID)
 
 mdat<-merge(dat,message_join,by="ID")
 mdat<-mdat %>% filter(What=="Dive")
 
-mdat<-mdat %>% select(ID,Animal,Latitude,Longitude,timestamp,Start,End,Date,Month,Hour,Year,DepthMax,DepthMin,Quality,DurationMax,DurationMin)
+#The maxiumum dive depth based on the geographic message
+mdat<-mdat %>% select(ID,Animal,Latitude,Longitude,timestamp,Date,Month,Hour,Year,DepthMax,Quality) 
 
-#only focus on Antarctic Peninsula
-mdat<-mdat[!is.na(mdat$Latitude),]
+mdat<-mdat %>% group_by(ID,Animal) %>% slice(which.max(DepthMax)) %>% arrange(Animal,timestamp) %>% filter(!is.na(Latitude))
 
 #crop by extent
 d<-SpatialPointsDataFrame(cbind(mdat$Longitude,mdat$Latitude),data=data.frame(mdat),proj4string=CRS("+proj=longlat +datum=WGS84"))
@@ -446,7 +452,7 @@ mdat<-bind_rows(sxy)
 
 ###################################################
 #filter by just first day for the moment
-mdat<-mdat %>% group_by(Animal) %>% do(head(.,100))
+#mdat<-mdat %>% group_by(Animal) %>% do(head(.,100))
 ####################################################
 
 #mdat<-mdat %>% filter(Animal %in% c("131127","131136"))
@@ -513,7 +519,7 @@ data=list(dive=divearray,argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tr
 pt<-c("alpha","depth_mu","depth_tau")
 
 if(newModel){
-  system.time(jagM<-jags.parallel(model.file = "Bayesian/Diving.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10000,n.burnin=9000,n.thin=2,DIC=FALSE))
+  system.time(jagM<-jags.parallel(model.file = "Bayesian/Diving.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=50000,n.burnin=48000,n.thin=2,DIC=FALSE))
 }
 
 ```
@@ -564,10 +570,8 @@ alpha[alpha$Behavior=="Foraging->Traveling","Previous_State"]<-0
 
 ```{r}
 divep<-pc_dive %>% filter(parameter %in% c("depth_mu","depth_tau"))
-ggplot(divep,aes(x=value)) + geom_histogram() + facet_wrap(~Behavior)  
 
 ## Simulate dive depth
-
 depth_mu1<-pc_dive %>% filter(parameter %in% c("depth_mu"),Behavior==1)
 depth_mu2<-pc_dive %>% filter(parameter %in% c("depth_mu"),Behavior==2)
 depth_tau1<-pc_dive %>% filter(parameter %in% c("depth_tau"),Behavior==1)
@@ -577,4 +581,14 @@ travel_dives<-data.frame(MaxDepth=rnorm(1e5,depth_mu1$value,depth_tau1$value),Be
 forage_dives<-data.frame(MaxDepth=rnorm(1e5,depth_mu2$value,depth_tau2$value),Behavior="Foraging")
 pred_dives<-bind_rows(travel_dives,forage_dives)
 ggplot(pred_dives,aes(x=MaxDepth,fill=Behavior)) + geom_histogram()
+```
+
+## Posterior checks
+
+* Compare observed dive depths by inferred behavior against generated data
+
+* Foraging is probably more log normal.
+
+```{r}
+save.image("WhalePhys.RData")
 ```

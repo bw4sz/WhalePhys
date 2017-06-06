@@ -119,7 +119,7 @@ cat("
     depth_mu[1] ~ dnorm(0,0.0001)
     
     #we know that foraging dives are deeper
-    forage ~ dnorm(50,0.01)
+    forage ~ dnorm(100,0.0001)
     depth_mu[2] <- depth_mu[1] + forage
     
     #depth variance
