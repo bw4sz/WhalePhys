@@ -23,8 +23,6 @@ The proportion of time an animal is in a feeding behavioral state.
 
 *Process Model*
 
-
-
 $$Y_{i,t+1} \sim Multivariate Normal(d_{i,t},σ)$$
 
 $$d_{i,t}= Y_{i,t} + γ_(s_(i,g,t) )*T_(i,g,t)*( Y_(i,g,t)- Y_(i,g,t-1) )$$
@@ -37,8 +35,6 @@ $$
 $$
 
 $$logit(\phi_{traveling}) = \alpha_{Behavior_{t-1}}$$
-
-
 ```{r,echo=F,warning=F,message=F}
 library(tidyr)
 library(ggplot2)
@@ -109,7 +105,7 @@ mxy<-mxy[!is.na(mxy$timestamp),]
 #mxy<-mxy[!duplicated(data.frame(mxy$timestamp,mxy$Animal)),]
 mxy<-mxy[!mxy$ETOPO1.Elevation>0,]
 
-ggplot()+geom_path(data=mxy, aes(x=x, y=y,group=Animal),size=.5)  + borders(fill="grey90") + coord_cartesian(ylim = range(mdat$Latitude),xlim=range(mdat$Longitude)) + theme_bw() + mytheme + scale_fill_manual(values=rep("NA",8)) + scale_color_discrete(guide="none")
+ggplot()+geom_path(data=mxy, aes(x=x, y=y,group=Animal),size=.5)  + borders(fill="grey90") + coord_cartesian(ylim = range(mxy$y),xlim=range(mxy$x)) + theme_bw() + mytheme  + scale_color_discrete(guide="none")
 
 ##Time is the beginning of the first point.
 step_length=12
@@ -378,16 +374,15 @@ setkey(gdat,Ptt, Date)    ## same as above
 ans = gdat[messages, roll=Inf] ## perform rolling join
 ans<-as.data.frame(ans)
 
+message_join<-ans %>% select(Date,Animal=Ptt,Date,Quality,Latitude,Longitude,ID)
+
+mdat<-merge(dat,message_join,by="ID")
+mdat<-mdat %>% filter(What=="Dive")
 
 ##Dates don't quite match
 gdat %>% filter(Ptt=="131111")
 mdat %>% filter(Animal=="131111",ID==1)
 messages %>% filter(Ptt=="131111",ID==1)
-
-message_join<-ans %>% select(Date,Animal=Ptt,Date,Quality,Latitude,Longitude,ID)
-
-mdat<-merge(dat,message_join,by="ID")
-mdat<-mdat %>% filter(What=="Dive")
 
 #The maxiumum dive depth based on the geographic message
 mdat<-mdat %>% select(ID,Animal,Latitude,Longitude,timestamp,Date,Month,Hour,Year,DepthMax,Quality) 
@@ -404,7 +399,7 @@ b<-d[!is.na(d %over% cropoly)[,2],]
 mdat<-b@data
 
 #view data
-ggplot(data=mdat)+geom_path(aes(x=Longitude, y=Latitude,group=Animal),size=.5) + geom_point(aes(x=Longitude, y=Latitude,col=DepthMax))+ borders(fill="grey90") + coord_cartesian(ylim = range(mdat$Latitude),xlim=range(mdat$Longitude)) + theme_bw() + mytheme + scale_color_continuous(low="blue",high="red")
+ggplot(data=mdat)+geom_path(aes(x=Longitude, y=Latitude,group=Animal),size=.5) + geom_point(aes(x=Longitude, y=Latitude,col=DepthMax))+ borders(fill="grey90") + coord_cartesian(ylim = range(mdat$Latitude),xlim=range(mdat$Longitude)) + theme_bw() + mytheme + scale_color_continuous(low="blue",high="red") + labs(col="Max Dive Depth(m)")
 
 ##Time is the beginning of the first point.
 step_length=12
@@ -451,11 +446,9 @@ return(x)
 mdat<-bind_rows(sxy)
 
 ###################################################
-#filter by just first day for the moment
-#mdat<-mdat %>% group_by(Animal) %>% do(head(.,100))
+#filter by two whales for the moment
+mdat<-mdat %>% filter(Animal %in% c("131127","131136"))
 ####################################################
-
-#mdat<-mdat %>% filter(Animal %in% c("131127","131136"))
 
 #refactor animal
 mdat$Animal<-as.numeric(as.factor(mdat$Animal))
@@ -516,10 +509,10 @@ R <- diag(c(1,1))
 data=list(dive=divearray,argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tracks,argos_class=obs_class)
 
 #paramters to track
-pt<-c("alpha","depth_mu","depth_tau")
+pt<-c("alpha","depth_mu","depth_tau","dive_new","state")
 
 if(newModel){
-  system.time(jagM<-jags.parallel(model.file = "Bayesian/Diving.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=50000,n.burnin=48000,n.thin=2,DIC=FALSE))
+  system.time(jagM<-jags.parallel(model.file = "Bayesian/Diving.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=5000,n.burnin=4000,n.thin=2,DIC=FALSE))
 }
 
 ```
@@ -537,17 +530,32 @@ pc_dive$parameter<-data.frame(str_match(pc_dive$par,"(\\w+)"))[,-1]
 splitpc<-split(pc_dive,pc_dive$parameter)
 
 #single index
-splitpc<-lapply(splitpc,function(x){
+splitpc[c("alpha","depth_mu","depth_tau")]<-lapply(splitpc[c("alpha","depth_mu","depth_tau")],function(x){
     sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+)]"))[,3]
     pc<-data.frame(x,Behavior=sv)
     return(pc)
 }) 
 
+#3 index
+splitpc[c("state")]<-lapply(splitpc[c("dive_new")],function(x){
+    sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+),(\\d+),(\\d+),(\\d+)]"))[,3:5]
+    colnames(sv)<-c("Animal","Track","step")
+    pc<-data.frame(x,sv)
+    return(pc)
+}) 
+
+#4 index
+splitpc[c("dive_new")]<-lapply(splitpc[c("dive_new")],function(x){
+    sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+),(\\d+),(\\d+),(\\d+)]"))[,3:6]
+    colnames(sv)<-c("Animal","Track","step","jStep")
+    pc<-data.frame(x,sv)
+    return(pc)
+}) 
 #bind all matrices back together
 pc_dive<-bind_rows(splitpc)
 rm(splitpc)
 
-ggplot(pc_dive,aes(x=Draw,y=value,col=as.factor(chain))) + geom_line() + facet_wrap(~par,scales="free")
+ggplot(pc_dive[!pc_dive$parameter %in% c("dive_new","state"),],aes(x=Draw,y=value,col=as.factor(chain))) + geom_line() + facet_wrap(~par,scales="free")
 
 ```
 
@@ -587,7 +595,35 @@ ggplot(pred_dives,aes(x=MaxDepth,fill=Behavior)) + geom_histogram()
 
 * Compare observed dive depths by inferred behavior against generated data
 
-* Foraging is probably more log normal.
+```{r}
+
+pred_dives<-pc_dive %>% filter(parameter=="dive_new") %>% group_by(Animal,Track,step,jStep) %>% summarize(Pred_DepthMax=mean(value)) %>% ungroup()  %>% mutate(Animal=as.numeric(as.character(Animal)),Track=as.numeric(as.character(Track)),jStep=as.numeric(as.character(jStep)))
+
+predframe<-pred_dives %>% inner_join(mdat,by=c("Animal","Track","step","jStep")) %>% select(Animal,Latitude,Longitude,Track,step,jStep,timestamp,Pred_DepthMax,DepthMax)
+
+#merge with state
+pc_dive %>% filter(parameter=="state") %>% group_by(Animal,Track,step,jStep) %>% summarize(state=names(sort(table(value)))[1]) %>% ungroup()  %>% mutate(Animal=as.numeric(as.character(Animal)),Track=as.numeric(as.character(Track)),jStep=as.numeric(as.character(jStep))) %>% inner_join(predframe,by=c("Animal","Track","step"))
+
+ggplot(data=predframe) + geom_point(aes(x=DepthMax,y=Pred_DepthMax)) + geom_abline(linetype="dashed") + 
+
+ggplot(data=predframe) + geom_point(aes(x=DepthMax,y=Pred_DepthMax)) + facet_wrap(~Animal) + theme_bw()
+
+ggplot(data=predframe) + geom_point(aes(x=DepthMax,y=Pred_DepthMax)) + facet_wrap(~state) + theme_bw()
+ggplot(data=predframe) + geom_point(aes(x=DepthMax,y=Pred_DepthMax)) + facet_wrap(~Animal) + theme_bw()
+
+```
+
+## Discrepancy
+
+```{r}
+
+chisquared<-function(o,e){(o-e)^2/e}
+chiframe<-predframe %>% group_by(Animal,Track,step,jStep) %>% do(chi=chisquared(o=.$Pred_DepthMax,e=.$DepthMax)) 
+
+ggplot(chiframe,aes(x=DepthMax,y=chi)) + geom_point()
+
+ggplot(chiframe,aes(x=as.factor(Animal),y=chi)) + geom_boxplot() + labs(x="Animal")
+```
 
 ```{r}
 save.image("WhalePhys.RData")

@@ -75,6 +75,9 @@ cat("
     #for each dive depth
     #dive depth at time t
     dive[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])
+
+    #generate new data to view
+    dive_new[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])
     }
     }
     }

@@ -1,0 +1,77 @@
+---
+title: "Simulation"
+author: "Ben Weinstein"
+date: "June 5, 2017"
+output: html_document
+---
+
+# Aim
+
+# Input Data
+
+Empirical estimates of behavior allocation ($\alpha$)
+Empirical estimates of dive depth ($dive_\mu$, $dive_\tau$)
+Lunges per dive depth
+Energetic effort per lunge
+Krill distribution
+Energetic gain per lunge
+
+```{r}
+
+#Simulation ID
+simid<-runif(1,0,10000000)
+
+#format parameter sheet
+
+generate_parameters<-function(alpha,depth_mu,depth_tau){
+  
+  
+  #time foraging
+  
+  
+  #Average dive depth
+  divedepth<-rnorm(depth_mu,depth_tau)
+  
+  #Energetic gain per lunge
+  
+  
+  #Energetic cost per lunge
+  
+  
+  #Krill Distribution
+  
+  
+  data.frame(simid,)
+}
+
+simulation<-function(params){
+  
+  #simulation gets a unique ID
+  
+  #Foraging hours
+  fhours<-sim_fhours()
+  
+  for(x in step_length){
+    #Dives 
+    dives[x]<-sim_dive()
+    
+    #Lunges
+    lunges[x]<-sim_lunges(dives)
+    
+    #gain per lunge
+    gain_lunge[x]<-sim_lgain(lunges)
+    
+    #costs per lunche
+    cost_lunge[x]<-sim_lcost(lunges)
+    
+  }
+  
+  out<-data.frame(time=1:fhours,dives=dives,lunges,gain_lunge,cost_lunge)
+  
+  #output parameter table
+  params
+  #
+  
+}
+
+```
