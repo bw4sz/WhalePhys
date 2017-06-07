@@ -1,7 +1,7 @@
 ---
 title: "Foraging Model"
 author: "Ben Weinstein"
-date: "May 30, 2017"
+date: "`r Sys.time()`"
 output: 
   html_document:
     toc: true
@@ -72,6 +72,7 @@ mytheme<-theme(axis.text.x=element_blank(),axis.ticks.x=element_blank(),axis.tex
 
 if(!newModel){
   load("WhalePhys.RData")
+  newModel=F
 }
 
 #get dive data
