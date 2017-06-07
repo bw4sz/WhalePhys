@@ -80,7 +80,16 @@ cat("
     dive[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])
 
     #generate new data to view
+
+    #Assess Model Fit
+    
+    #Fit dive discrepancy statistics
+    eval[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])
+    E[i,g,t,u]<-pow((dive[i,g,t,u]-eval[i,g,t,u]),2)/(eval[i,g,t,u]+0.5)
+    
     dive_new[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])
+    Enew[i,g,t,u]<-pow((dive_new[i,g,t,u]-eval[i,g,t,u]),2)/(eval[i,g,t,u]+0.5)
+
     }
     }
     }
@@ -122,7 +131,7 @@ cat("
     
     #Dive Priors
     #average max depth
-    depth_mu[1] ~ dnorm(0,0.0001)
+    depth_mu[1] ~ dnorm(0,0.0001)T(0,)
     
     #we know that foraging dives are deeper
     forage ~ dnorm(100,0.0001)

@@ -61,7 +61,7 @@ library(R2jags)
 library(knitr)
 
 
-newModel=F
+newModel=T
 
 opts_chunk$set(echo=F,warning=F,message=F,fig.width=11)
 
@@ -273,11 +273,11 @@ R <- diag(c(1,1))
 data=list(divecount=divecount,dive=maxdive,argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tracks,argos_class=obs_class)
 
 #paramters to track
-pt<-c("alpha","depth_mu","depth_tau","dive_new","state","lambda")
+pt<-c("alpha","depth_mu","depth_tau","dive_new","state","lambda_count","E","Enew")
 
 if(newModel){
-  system.time(diving<-jags.parallel(model.file = "Bayesian/Diving.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10000,n.burnin=9500,n.thin=2,DIC=FALSE))
-}
+  system.time(diving<-jags.parallel(model.file = "Bayesian/Diving.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=7000,n.burnin=6500,n.thin=2,DIC=FALSE))
+  }
 
 ```
 
@@ -294,7 +294,7 @@ pc_dive$parameter<-data.frame(str_match(pc_dive$par,"(\\w+)"))[,-1]
 splitpc<-split(pc_dive,pc_dive$parameter)
 
 #single index
-splitpc[c("alpha","depth_mu","depth_tau","lambda")]<-lapply(splitpc[c("alpha","depth_mu","depth_tau","lambda")],function(x){
+splitpc[c("alpha","depth_mu","depth_tau","lambda_count")]<-lapply(splitpc[c("alpha","depth_mu","depth_tau","lambda_count")],function(x){
     sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+)]"))[,3]
     pc<-data.frame(x,Behavior=sv)
     return(pc)
@@ -309,7 +309,7 @@ splitpc[c("state")]<-lapply(splitpc[c("state")],function(x){
 }) 
 
 #4 index
-splitpc[c("dive_new")]<-lapply(splitpc[c("dive_new")],function(x){
+splitpc[c("dive_new","E","Enew")]<-lapply(splitpc[c("dive_new","E","Enew")],function(x){
     sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+),(\\d+),(\\d+),(\\d+)]"))[,3:6]
     colnames(sv)<-c("Animal","Track","step","jStep")
     pc<-data.frame(x,sv)
@@ -319,7 +319,7 @@ splitpc[c("dive_new")]<-lapply(splitpc[c("dive_new")],function(x){
 pc_dive<-bind_rows(splitpc)
 rm(splitpc)
 
-ggplot(pc_dive[!pc_dive$parameter %in% c("dive_new","state"),],aes(x=Draw,y=value,col=as.factor(chain))) + geom_line() + facet_wrap(~par,scales="free")
+ggplot(pc_dive[!pc_dive$parameter %in% c("dive_new","state","E","Enew"),],aes(x=Draw,y=value,col=as.factor(chain))) + geom_line() + facet_wrap(~par,scales="free")
 
 ```
 
@@ -408,8 +408,8 @@ ggplot(pc_dive[pc_dive$parameter=="dive_new",])+  geom_density(aes(x=value),col=
 ```{r}
 
 ## Simulate dive counts
-count_lambda1<-pc_dive %>% filter(parameter %in% c("lambda"),Behavior==1)
-count_lambda2<-pc_dive %>% filter(parameter %in% c("lambda"),Behavior==2)
+count_lambda1<-pc_dive %>% filter(parameter %in% c("lambda_count"),Behavior==1)
+count_lambda2<-pc_dive %>% filter(parameter %in% c("lambda_count"),Behavior==2)
 
 statecount<-pc_dive %>% filter(parameter=="state") %>% group_by(Animal,Track,step) %>% summarize(state=names(sort(table(value)))[1]) %>% group_by(state) %>% summarize(n=n()) %>% data.frame()
 
@@ -420,32 +420,50 @@ forage_counts<-data.frame(Counts=rpois(statecount[2,"n"],count_lambda2$value),Be
 obs_count<-mdat %>% group_by(Animal,Track,step) %>% summarize(Counts=n())
 
 pred_counts<-bind_rows(travel_counts,forage_counts)
-ggplot(pred_counts) + geom_histogram(alpha=0.5,aes(x=Counts,fill=Behavior)) + geom_histogram(data=obs_count,aes(x=Counts),col="black",size=1) + theme_bw() 
+ggplot(pred_counts) + geom_histogram(data=obs_count,aes(x=Counts),col="black") + theme_bw() + geom_histogram(alpha=0.7,aes(x=Counts,fill=Behavior)) 
 ```
 
-## Posterior checks
+## Model Evaluation
 
 * Compare observed dive depths by inferred behavior against generated data
 
 ```{r,eval=F}
-pred_dives<-pc_dive %>% filter(parameter=="dive_new") %>% group_by(Animal,Track,step,jStep) %>% summarize(Pred_DepthMax=mean(value)) %>% ungroup()  %>% mutate(Animal=as.numeric(as.character(Animal)),Track=as.numeric(as.character(Track)),jStep=as.numeric(as.character(jStep)))
-
-predframe<-pred_dives %>% inner_join(mdat,by=c("Animal","Track","step","jStep")) %>% select(Animal,Latitude,Longitude,Track,step,jStep,timestamp,Predicted=Pred_DepthMax,Observed=DepthMax)
+predframe<-pc_dive %>% filter(parameter=="dive_new") %>% mutate(Animal=as.numeric(as.character(Animal)),Track=as.numeric(as.character(Track)),jStep=as.numeric(as.character(jStep))) %>% inner_join(mdat,by=c("Animal","Track","step","jStep")) %>% select(Animal,Latitude,Longitude,Track,step,jStep,timestamp,Predicted=value,Observed=DepthMax)
 
 #merge with state
 predframe<-pc_dive %>% filter(parameter=="state") %>% group_by(Animal,Track,step) %>% summarize(state=names(sort(table(value)))[1]) %>% ungroup()  %>% mutate(Animal=as.numeric(as.character(Animal)),Track=as.numeric(as.character(Track))) %>% inner_join(predframe,by=c("Animal","Track","step"))
 
 predframe<-reshape2::melt(predframe, measure.vars=c("Predicted","Observed"),value.name="DepthMax")
 
-ggplot(data=predframe) + geom_histogram(aes(x=DepthMax,fill=variable),alpha=0.8)  + theme_bw()
+#relevel
+predframe[predframe$state==1,"state"]<-"Traveling"
+predframe[predframe$state==2,"state"]<-"Foraging"
 
-ggplot(data=predframe) + geom_density(aes(x=DepthMax,fill=variable),alpha=0.8) 
+ggplot(data=predframe) + geom_density(aes(x=DepthMax,fill=state),alpha=0.8)  + theme_bw() + facet_wrap(~variable,nrow=2)
 
-ggplot(data=predframe) + geom_density(aes(x=DepthMax,fill=variable),alpha=0.8) + facet_wrap(~state) + ggtitle("By Behavior")
+ggplot(data=predframe) + geom_density(aes(x=DepthMax,fill=variable),alpha=0.8)  + theme_bw() + facet_wrap(~state,nrow=2,scale="free")+ ggtitle("By Behavior")
 
-ggplot(data=predframe) + geom_density(aes(x=DepthMax,fill=variable),alpha=0.8) + facet_wrap(~Animal) + ggtitle("By Animal")
-
+ggplot(data=predframe) + geom_density(aes(x=DepthMax,fill=variable),alpha=0.8)  + theme_bw() + facet_grid(Animal~state,scale="free")+ ggtitle("By Behavior and Animal")
 ```
+
+## Posterior Checks
+
+The goodness of fit is a measured as chi-squared. The expected value is compared to the observed value of the actual data. In addition, a replicate dataset is generated from the posterior predicted intensity. Better fitting models will have lower discrepancy values and be 
+Better fitting models are smaller values and closer to the 1:1 line. A perfect model would be 0 discrepancy. This is unrealsitic given the stochasticity in the sampling processes. Rather, its better to focus on relative discrepancy. In addition, a model with 0 discrepancy would likely be seriously overfit and have little to no predictive power.
+
+```{r,fig.height=4,fig.width=8,message=F,warning=F}
+
+fitstat<-pc_dive %>% filter(parameter %in% c("E","Enew")) %>% group_by(parameter,Draw,chain) %>% summarize(fit=sum(value))
+
+fitstat<-dcast(fitstat,Draw+chain~parameter,value.var="fit")
+
+ymin<-min(c(fitstat$E,fitstat$Enew)) - min(c(fitstat$E,fitstat$Enew)) * .2
+ymax<-max(c(fitstat$E,fitstat$Enew)) + max(c(fitstat$E,fitstat$Enew)) * .2
+ggplot(fitstat,aes(x=E,y=Enew)) + geom_point() + theme_bw() + labs(x="Discrepancy of observed data",y="Discrepancy of replicated data") + geom_abline() + coord_fixed() + ylim(ymin=ymin,ymax=ymax) + xlim(xmin=ymin,xmax=ymax)
+
+fitstat %>% group_by() %>% summarize(mean(E),var(Enew))
+```
+
 
 ```{r}
 save.image("WhalePhys.RData")
