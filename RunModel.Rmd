@@ -60,7 +60,8 @@ library(chron)
 library(R2jags)
 library(knitr)
 
-newModel=T
+
+newModel=F
 
 opts_chunk$set(echo=F,warning=F,message=F,fig.width=11)
 
@@ -68,6 +69,11 @@ mytheme<-theme(axis.text.x=element_blank(),axis.ticks.x=element_blank(),axis.tex
 ```
 
 ```{r}
+
+if(!newModel){
+  load("WhalePhys.RData")
+}
+
 #get dive data
 
 f<-list.files("C:/Users/Ben/Dropbox/Whales/Data/Humpback",pattern="Locations",full.names=T,recursive = T)
@@ -385,12 +391,15 @@ depth_mu2<-pc_dive %>% filter(parameter %in% c("depth_mu"),Behavior==2)
 depth_tau1<-pc_dive %>% filter(parameter %in% c("depth_tau"),Behavior==1)
 depth_tau2<-pc_dive %>% filter(parameter %in% c("depth_tau"),Behavior==2)
 
-travel_dives<-data.frame(MaxDepth=rnorm(1e5,depth_mu1$value,sqrt(1/depth_tau1$value)),Behavior="Traveling")
-forage_dives<-data.frame(MaxDepth=rnorm(1e5,depth_mu2$value,sqrt(1/depth_tau2$value)),Behavior="Foraging")
+#how many of each state to draw?
+statecount<-pc_dive %>% filter(parameter=="state") %>% group_by(Animal,Track,step) %>% summarize(state=names(sort(table(value)))[1]) %>% group_by(state) %>% summarize(n=n()) %>% data.frame()
+
+travel_dives<-data.frame(MaxDepth=rnorm(statecount[1,"n"],depth_mu1$value,sqrt(1/depth_tau1$value)),Behavior="Traveling")
+forage_dives<-data.frame(MaxDepth=rnorm(statecount[2,"n"],depth_mu2$value,sqrt(1/depth_tau2$value)),Behavior="Foraging")
 pred_dives<-bind_rows(travel_dives,forage_dives)
 ggplot(pred_dives) + geom_density(alpha=0.5,aes(x=MaxDepth,fill=Behavior)) + geom_density(data=mdat,aes(x=DepthMax),col="black",size=1) + theme_bw() 
 
-ggplot(pc_dive[pc_dive$parameter=="dive_new",])+  geom_density(aes(x=value,fill=par)) + geom_density(data=mdat,aes(x=DepthMax),col="black",size=1.5) + theme_bw() 
+ggplot(pc_dive[pc_dive$parameter=="dive_new",])+  geom_density(aes(x=value),col="red") + geom_density(data=mdat,aes(x=DepthMax),col="black",size=1.5) + theme_bw() 
 ```
 
 ##Distribution of average dive counts
@@ -401,8 +410,10 @@ ggplot(pc_dive[pc_dive$parameter=="dive_new",])+  geom_density(aes(x=value,fill=
 count_lambda1<-pc_dive %>% filter(parameter %in% c("lambda"),Behavior==1)
 count_lambda2<-pc_dive %>% filter(parameter %in% c("lambda"),Behavior==2)
 
-travel_counts<-data.frame(Counts=rpois(1e5,count_lambda1$value),Behavior="Traveling")
-forage_counts<-data.frame(Counts=rpois(1e5,count_lambda2$value),Behavior="Foraging")
+statecount<-pc_dive %>% filter(parameter=="state") %>% group_by(Animal,Track,step) %>% summarize(state=names(sort(table(value)))[1]) %>% group_by(state) %>% summarize(n=n()) %>% data.frame()
+
+travel_counts<-data.frame(Counts=rpois(statecount[1,"n"],count_lambda1$value),Behavior="Traveling")
+forage_counts<-data.frame(Counts=rpois(statecount[2,"n"],count_lambda2$value),Behavior="Foraging")
 
 #calculate observed
 obs_count<-mdat %>% group_by(Animal,Track,step) %>% summarize(Counts=n())
