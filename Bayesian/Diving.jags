@@ -76,9 +76,7 @@
 
     #for each dive depth
     #dive depth at time t
-    dive[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])
-
-    #generate new data to view
+    dive[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])T(0,)
 
     #Assess Model Fit
     
@@ -130,10 +128,10 @@
     
     #Dive Priors
     #average max depth
-    depth_mu[1] ~ dnorm(0,0.0001)T(0,)
+    depth_mu[1] ~ dnorm(0,0.001)
     
     #we know that foraging dives are deeper
-    forage ~ dnorm(100,0.0001)
+    forage ~ dnorm(0.5,0.001)
     depth_mu[2] <- depth_mu[1] + forage
     
     #depth variance

@@ -7,103 +7,144 @@ output: html_document
 
 # Aim
 
-# Input Data
+#Parameters
 
-Empirical estimates of behavior allocation ($\alpha$)
-Empirical estimates of dive depth ($dive_\mu$, $dive_\tau$)
-Lunges per dive depth
-Energetic effort per lunge
-Krill distribution
-Energetic gain per lunge
+## Empirical parameters estimated from whale tagging data
+
+Behavior allocation (Foraging,Traveling) at each time step (Binomial($\alpha$))
+
+Average maximum depth (LogNormal($\mu = dive_\mu$, sd= \frac{1/dive_\tau}))
+
+Average number of dives (Poisson($lambda = divecount$)
+
+## Parameters estimated from literature 
+
+Initial body mass (M) = 39614 kg (Tyson et al. 2016, Lockyer 1976)
+
+Metabolic rate while traveling ($\m_{traveling}$) = 2.32/sec, Tyson et al. (2016),Williams et al. (2001).
+
+Metabolic rate while traveling ($\m_{foraging}$) = 4.14/sec, Tyson et al. (2016),Williams et al. (2001).
+
+Lunges per dive depth (Ware 2011 suggests that the time between lunges is 40 seconds, how to turn that into a function of depth, )
+Energetic cost per lunge ($E_{lunge}) = 298 080 J
+
+Krill value per lunge=11kg
+
+Metabolic efficiency,
+
+The recent bottlenose paper has
 
 ```{r}
-#functions
-foraging_time<-function(alpha,draws){
+hist(rbeta(1e5,43.60,5.71))
+```
+
+```{r}
+##########
+#Functions
+##########
+
+behavior<-function(pars){
   states<-c()
   
   #initial state is traveling
   states[1]<-(1)
   
-  for(x in 2:draws){
+  for(x in 2:pars$draws){
     
     #probability of staying, or switching, to traveling state
-    travel_prob=alpha %>% filter(Previous_State==states[x-1]) %>% sample_n(1) %>% .$value
+    travel_prob=pars$alpha %>% filter(Previous_State==states[x-1]) %>% sample_n(1) %>% .$value
     
     #pick next state
     states[x]<-rbinom(1,1,travel_prob)
   }
   
   #total hours of foraging
-  total_foraging<-sum(states==0)
-return(total_foraging)
+return(states)
 }
 ```
 
+```{r}
+#Traveling state function
+
+traveling_state<-function(pars){
+    
+    #Cost of traveling
+    energy<-metabolic_traveling(pars)
+    
+  return(energy)
+  }
+ 
+```
 
 ```{r}
 
-#Simulation ID
-simid<-runif(1,0,10000000)
+#Foraging state function
 
-#format parameter sheet
-
-generate_parameters<-function(draws,pars){
-  
-  #foraging states in a given time interval
-  states<-foraging_time(alpha=pars$alpha,draws=draws)
-  
-  #time foraging periods
-  for (state in 1:states){
-    
-    #number of dives in that period
+foraging_state<-function(pars){
     divecount<-rpois(1,pars$lambda_count2)
     
+    dive_energy<-c()
     for(dive in 1:divecount){
       
       #dive length
       divedepth<-rnorm(1,pars$depth_mu2,pars$depth_tau2)  
+      
+      #lunges 
+      lunges<-sim_lunges(divedepth)
+      
+      #gain per lunge
+      gain_lunge<-sim_lgain(lunges)
+      
+      #costs per lunche
+      cost_lunge<-sim_lcost(lunges)
+      
+      dive_energy[x]<-gain_lunge-cost_lunge
+    }
+    
+    #sum across dives
+    energy<-sum(dive_energy)
+     return(energy)
+  }
+ 
+```
+
+```{r}
+
+#Simulation ID
+
+#format parameter sheet
+generate_pars<-function(){
+  simid<-runif(1,0,10000000)
+  
+}
+
+simulation<-function(pars){
+  
+  #foraging states in a given time interval
+  states<-behavior(pars)
+  
+  #time foraging periods
+  for (state in 1:states){
+    
+    #if foraging
+    if(state==1){
+      energy[x]<-foraging_state()
+    } else{
+      energy[x]<-traveling()
     }
   }
-
-
-  #Energetic gain per lunge
   
-  #Energetic cost per lunge
-  
-  #Krill Distribution
-  
-  
-  data.frame(simid,)
-}
-
-simulation<-function(params){
-  
-  #simulation gets a unique ID
-  
-  #Foraging hours
-  fhours<-sim_fhours()
-  
-  for(x in step_length){
-    #Dives 
-    dives[x]<-sim_dive()
-    
-    #Lunges
-    lunges[x]<-sim_lunges(dives)
-    
-    #gain per lunge
-    gain_lunge[x]<-sim_lgain(lunges)
-    
-    #costs per lunche
-    cost_lunge[x]<-sim_lcost(lunges)
-    
-  }
-  
-  out<-data.frame(time=1:fhours,dives=dives,lunges,gain_lunge,cost_lunge)
-  
-  #output parameter table
-  params
-  #
+  #Convert energy to calories
+  energy * metabolic_efficiency
   
 }
-
 ```
+
+
+# Future directions
+
+* Variable krill swarm size
+
+* Temporal variation in foraging rates
+
+* Explicitely spatial structure, movement, krill swarms, etc.

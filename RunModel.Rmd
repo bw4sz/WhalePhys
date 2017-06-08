@@ -24,7 +24,7 @@ The proportion of time an animal is in a feeding behavioral state.
 
 $$Y_{i,t+1} \sim Multivariate Normal(d_{i,t},σ)$$
 
-$$d_{i,t}= Y_{i,t} + γ_(s_(i,g,t) )*T_(i,g,t)*( Y_(i,g,t)- Y_(i,g,t-1) )$$
+$$d_{i,t}= Y_{i,t} + γ_{s_{i,g,t}}*T_{i,g,t}*( Y_{i,g,t}- Y_{i,g,t-1} )$$
 
 $$
 \begin{matrix}
@@ -40,10 +40,8 @@ Dive information is a mixture model based on behavior (S)
 
 $\text{Average dive depth}(\psi)$
 $$ \psi \sim Normal(dive_{\mu_S},dive_{\tau_S})$$
-
 $\text{Average number of dives }(\omega)$
 $$ \omega \sim Poisson(\lambda_S)$$
-
 ```{r,echo=F,warning=F,message=F}
 library(tidyr)
 library(ggplot2)
@@ -56,6 +54,7 @@ library(stringr)
 library(chron)
 library(R2jags)
 library(knitr)
+library(truncnorm)
 
 
 newModel=T
@@ -152,8 +151,11 @@ b<-d[!is.na(d %over% cropoly)[,2],]
 
 mdat<-b@data
 
+#set max dpeth to km
+mdat$DepthMax<-mdat$DepthMax/1000
+
 #view data
-ggplot(data=mdat)+geom_path(aes(x=Longitude, y=Latitude,group=Animal),size=.5) + geom_point(aes(x=Longitude, y=Latitude,col=DepthMax))+ borders(fill="grey90") + coord_cartesian(ylim = range(mdat$Latitude),xlim=range(mdat$Longitude)) + theme_bw() + mytheme + scale_color_continuous(low="blue",high="red") + labs(col="Max Dive Depth(m)")
+ggplot(data=mdat)+geom_path(aes(x=Longitude, y=Latitude,group=Animal),size=.5) + geom_point(aes(x=Longitude, y=Latitude,col=DepthMax))+ borders(fill="grey90") + coord_cartesian(ylim = range(mdat$Latitude),xlim=range(mdat$Longitude)) + theme_bw() + mytheme + scale_color_continuous(low="blue",high="red") + labs(col="Max Dive Depth (km)")
 
 ##Time is the beginning of the first point.
 step_length=6
@@ -199,9 +201,12 @@ return(x)
 
 mdat<-bind_rows(sxy)
 
+
+
 ###################################################
 #filter by two whales for the moment
 mdat<-mdat %>% filter(Animal %in% c("131127","131136"))
+#mdat<-mdat %>% filter(Animal %in% c("131127"))
 ####################################################
 
 #refactor animal
@@ -255,7 +260,6 @@ divecount<-reshape2::acast(mdat,Animal~Track~step,value.var="DepthMax",fun.aggre
 
 #no dives, fill empty
 divecount[divecount==0]<-NA
-
 ```
 
 ```{r,child="Bayesian/Diving.R",eval=T}
@@ -270,10 +274,10 @@ R <- diag(c(1,1))
 data=list(divecount=divecount,dive=maxdive,argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tracks,argos_class=obs_class)
 
 #paramters to track
-pt<-c("alpha","depth_mu","depth_tau","dive_new","state","lambda_count","E","Enew","eval")
+pt<-c("alpha","depth_mu","depth_tau","dive_new","state","lambda_count","E","Enew")
 
 if(newModel){
-  system.time(diving<-jags.parallel(model.file = "Bayesian/Diving.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10000,n.burnin=9500,n.thin=2,DIC=FALSE))
+  system.time(diving<-jags.parallel(model.file = "Bayesian/Diving.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=5000,n.burnin=4500,n.thin=2,DIC=FALSE))
   }
 
 ```
@@ -317,7 +321,6 @@ pc_dive<-bind_rows(splitpc)
 rm(splitpc)
 
 ggplot(pc_dive[!pc_dive$parameter %in% c("dive_new","state","E","Enew","eval"),],aes(x=Draw,y=value,col=as.factor(chain))) + geom_line() + facet_wrap(~par,scales="free")
-
 ```
 
 ## Empirical distribution of foraging 
@@ -368,7 +371,6 @@ This allows us to specify the hours foraging while capturing our uncertainty in 
 For example, if we wanted to know how many hours an animal was predicted to forage on average over a 10 day span. We can draw 100 simulations given the posterior distributions of our empirical model.
 
 ```{r}
-
 test_time<-sapply(1:1000,function(x){
   foraging_time(alpha=alpha,draw=20,step=12)
 })
@@ -391,8 +393,9 @@ depth_tau2<-pc_dive %>% filter(parameter %in% c("depth_tau"),Behavior==2)
 #how many of each state to draw?
 statecount<-pc_dive %>% filter(parameter=="state") %>% group_by(Animal,Track,step) %>% summarize(state=names(sort(table(value)))[1]) %>% ungroup() %>% mutate(Animal=as.numeric(as.character(Animal)),Track=as.numeric(as.character(Track))) %>% inner_join(mdat,by=c("Animal","Track","step")) %>% group_by(state) %>% summarize(n=n()) %>% data.frame()
 
-travel_dives<-data.frame(MaxDepth=rnorm(statecount[1,"n"],depth_mu1$value,sqrt(1/depth_tau1$value)),Behavior="Traveling")
-forage_dives<-data.frame(MaxDepth=rnorm(statecount[2,"n"],depth_mu2$value,sqrt(1/depth_tau2$value)),Behavior="Foraging")
+#simulate dives 
+travel_dives<-data.frame(MaxDepth=rtruncnorm(statecount[1,"n"], mean=depth_mu1$value,sd=sqrt(1/depth_tau1$value),a=0),Behavior="Traveling")
+forage_dives<-data.frame(MaxDepth=rtruncnorm(statecount[2,"n"], mean=depth_mu2$value,sd=sqrt(1/depth_tau2$value),a=0),Behavior="Foraging")
 pred_dives<-bind_rows(travel_dives,forage_dives)
 ggplot(pred_dives)  + geom_histogram(data=mdat,aes(x=DepthMax),col="black")+ geom_histogram(alpha=0.8,aes(x=MaxDepth,fill=Behavior))  + theme_bw() 
 
