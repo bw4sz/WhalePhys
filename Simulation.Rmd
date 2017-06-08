@@ -17,26 +17,58 @@ Krill distribution
 Energetic gain per lunge
 
 ```{r}
+#functions
+foraging_time<-function(alpha,draws){
+  states<-c()
+  
+  #initial state is traveling
+  states[1]<-(1)
+  
+  for(x in 2:draws){
+    
+    #probability of staying, or switching, to traveling state
+    travel_prob=alpha %>% filter(Previous_State==states[x-1]) %>% sample_n(1) %>% .$value
+    
+    #pick next state
+    states[x]<-rbinom(1,1,travel_prob)
+  }
+  
+  #total hours of foraging
+  total_foraging<-sum(states==0)
+return(total_foraging)
+}
+```
+
+
+```{r}
 
 #Simulation ID
 simid<-runif(1,0,10000000)
 
 #format parameter sheet
 
-generate_parameters<-function(alpha,depth_mu,depth_tau){
+generate_parameters<-function(draws,pars){
   
+  #foraging states in a given time interval
+  states<-foraging_time(alpha=pars$alpha,draws=draws)
   
-  #time foraging
-  
-  
-  #Average dive depth
-  divedepth<-rnorm(depth_mu,depth_tau)
-  
+  #time foraging periods
+  for (state in 1:states){
+    
+    #number of dives in that period
+    divecount<-rpois(1,pars$lambda_count2)
+    
+    for(dive in 1:divecount){
+      
+      #dive length
+      divedepth<-rnorm(1,pars$depth_mu2,pars$depth_tau2)  
+    }
+  }
+
+
   #Energetic gain per lunge
   
-  
   #Energetic cost per lunge
-  
   
   #Krill Distribution
   

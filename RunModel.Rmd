@@ -14,12 +14,11 @@ output:
 Foraging behavior shapes animal health through the balance of the resources expended to obtain nutrients and the energetic rewards of captured resources. The health of individuals will influence reproductive success, fitness and ultimately population viability. Despite the key role of individual health in evolutionary ecology, it can be challenging to connect foraging behavior and energetics in free living marine organisms. Combining data on foraging strategies, feeding behavior and physiology, we estimate body mass for humpback whales as they forage near the Antarctic Peninsula. Humpback whales require extreme energetic storage to facilitate the yearly migration between austral foraging areas to equatorial breeding grounds. Based on tagged individuals, we model the foraging effort, duration and energetics of animals throughout the austral season. We then connect these measurements to studies of whale feeding physiology and biomechanics. While predictive modeling of individual behavior will be naturally complex, we utilize hierarchical Bayesian models to propagate uncertainty throughout the model. By testing a variety of model assumptions surrounding energetics and foraging rate, we can understand the sensitivity of our predictions to parameter bounds. Our model forms the basis for field tests of animal body condition and further exploration of individual behavior and animal health. Future work combining the environmental impacts of changing ocean conditions on foraging success will inform conservation strategies in a changing marine ecosystem.
 
 
-##Time Feeding
+# Foraging Model
 
 The proportion of time an animal is in a feeding behavioral state.
 
 (@eq1)
-
 
 *Process Model*
 
@@ -33,15 +32,13 @@ $$
   \alpha_{i,2,1} & 1-\alpha_{i,2,1} \\
 \end{matrix}
 $$
-
-
 $$logit(\phi_{traveling}) = \alpha_{Behavior_{t-1}}$$
 The behavior at time t of individual i on track g is a discrete draw.
 $$S_{i,g,t} \sim Cat(\phi_{traveling},\phi_{foraging})$$
 
 Dive information is a mixture model based on behavior (S)
 
-$Average dive depth (\psi)$
+$\text{Average dive depth}(\psi)$
 $$ \psi \sim Normal(dive_{\mu_S},dive_{\tau_S})$$
 
 $\text{Average number of dives }(\omega)$
@@ -273,10 +270,10 @@ R <- diag(c(1,1))
 data=list(divecount=divecount,dive=maxdive,argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tracks,argos_class=obs_class)
 
 #paramters to track
-pt<-c("alpha","depth_mu","depth_tau","dive_new","state","lambda_count","E","Enew")
+pt<-c("alpha","depth_mu","depth_tau","dive_new","state","lambda_count","E","Enew","eval")
 
 if(newModel){
-  system.time(diving<-jags.parallel(model.file = "Bayesian/Diving.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=7000,n.burnin=6500,n.thin=2,DIC=FALSE))
+  system.time(diving<-jags.parallel(model.file = "Bayesian/Diving.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10000,n.burnin=9500,n.thin=2,DIC=FALSE))
   }
 
 ```
@@ -319,7 +316,7 @@ splitpc[c("dive_new","E","Enew")]<-lapply(splitpc[c("dive_new","E","Enew")],func
 pc_dive<-bind_rows(splitpc)
 rm(splitpc)
 
-ggplot(pc_dive[!pc_dive$parameter %in% c("dive_new","state","E","Enew"),],aes(x=Draw,y=value,col=as.factor(chain))) + geom_line() + facet_wrap(~par,scales="free")
+ggplot(pc_dive[!pc_dive$parameter %in% c("dive_new","state","E","Enew","eval"),],aes(x=Draw,y=value,col=as.factor(chain))) + geom_line() + facet_wrap(~par,scales="free")
 
 ```
 
@@ -380,7 +377,6 @@ paste("Mean foraging hours:", mean(test_time),sep=" ")
 qplot(test_time) +ggtitle("Foraging Time (10 Days)") +xlab("Hours")
 ```
 
-
 ##Distribution of average max dive depths
 
 ```{r}
@@ -406,7 +402,6 @@ ggplot(pc_dive[pc_dive$parameter=="dive_new",])+  geom_density(aes(x=value),col=
 ##Distribution of average dive counts
 
 ```{r}
-
 ## Simulate dive counts
 count_lambda1<-pc_dive %>% filter(parameter %in% c("lambda_count"),Behavior==1)
 count_lambda2<-pc_dive %>% filter(parameter %in% c("lambda_count"),Behavior==2)
@@ -423,29 +418,6 @@ pred_counts<-bind_rows(travel_counts,forage_counts)
 ggplot(pred_counts) + geom_histogram(data=obs_count,aes(x=Counts),col="black") + theme_bw() + geom_histogram(alpha=0.7,aes(x=Counts,fill=Behavior)) 
 ```
 
-## Model Evaluation
-
-* Compare observed dive depths by inferred behavior against generated data
-
-```{r,eval=F}
-predframe<-pc_dive %>% filter(parameter=="dive_new") %>% mutate(Animal=as.numeric(as.character(Animal)),Track=as.numeric(as.character(Track)),jStep=as.numeric(as.character(jStep))) %>% inner_join(mdat,by=c("Animal","Track","step","jStep")) %>% select(Animal,Latitude,Longitude,Track,step,jStep,timestamp,Predicted=value,Observed=DepthMax)
-
-#merge with state
-predframe<-pc_dive %>% filter(parameter=="state") %>% group_by(Animal,Track,step) %>% summarize(state=names(sort(table(value)))[1]) %>% ungroup()  %>% mutate(Animal=as.numeric(as.character(Animal)),Track=as.numeric(as.character(Track))) %>% inner_join(predframe,by=c("Animal","Track","step"))
-
-predframe<-reshape2::melt(predframe, measure.vars=c("Predicted","Observed"),value.name="DepthMax")
-
-#relevel
-predframe[predframe$state==1,"state"]<-"Traveling"
-predframe[predframe$state==2,"state"]<-"Foraging"
-
-ggplot(data=predframe) + geom_density(aes(x=DepthMax,fill=state),alpha=0.8)  + theme_bw() + facet_wrap(~variable,nrow=2)
-
-ggplot(data=predframe) + geom_density(aes(x=DepthMax,fill=variable),alpha=0.8)  + theme_bw() + facet_wrap(~state,nrow=2,scale="free")+ ggtitle("By Behavior")
-
-ggplot(data=predframe) + geom_density(aes(x=DepthMax,fill=variable),alpha=0.8)  + theme_bw() + facet_grid(Animal~state,scale="free")+ ggtitle("By Behavior and Animal")
-```
-
 ## Posterior Checks
 
 The goodness of fit is a measured as chi-squared. The expected value is compared to the observed value of the actual data. In addition, a replicate dataset is generated from the posterior predicted intensity. Better fitting models will have lower discrepancy values and be 
@@ -453,7 +425,7 @@ Better fitting models are smaller values and closer to the 1:1 line. A perfect m
 
 ```{r,fig.height=4,fig.width=8,message=F,warning=F}
 
-fitstat<-pc_dive %>% filter(parameter %in% c("E","Enew")) %>% group_by(parameter,Draw,chain) %>% summarize(fit=sum(value))
+fitstat<-pc_dive %>% filter(parameter %in% c("E","Enew")) %>% group_by(parameter,Draw,chain) %>% summarize(fit=mean(value))
 
 fitstat<-dcast(fitstat,Draw+chain~parameter,value.var="fit")
 
@@ -463,7 +435,6 @@ ggplot(fitstat,aes(x=E,y=Enew)) + geom_point() + theme_bw() + labs(x="Discrepanc
 
 fitstat %>% group_by() %>% summarize(mean(E),var(Enew))
 ```
-
 
 ```{r}
 save.image("WhalePhys.RData")
