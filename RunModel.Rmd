@@ -277,7 +277,7 @@ data=list(divecount=divecount,dive=maxdive,argos=obs,steps=steps,R=R,ind=ind,j=j
 pt<-c("alpha","depth_mu","depth_tau","dive_new","state","lambda_count","E","Enew")
 
 if(newModel){
-  system.time(diving<-jags.parallel(model.file = "Bayesian/Diving.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=5000,n.burnin=4500,n.thin=2,DIC=FALSE))
+  system.time(diving<-jags.parallel(model.file = "Bayesian/Diving.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=20000,n.burnin=19500,n.thin=2,DIC=FALSE))
   }
 
 ```

@@ -77,15 +77,15 @@ cat("
 
     #for each dive depth
     #dive depth at time t
-    dive[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])T(0,)
+    dive[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])T(0.01,)
 
     #Assess Model Fit
     
     #Fit dive discrepancy statistics
-    eval[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])T(0,)
+    eval[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])T(0.01,)
     E[i,g,t,u]<-pow((dive[i,g,t,u]-eval[i,g,t,u]),2)/(eval[i,g,t,u])
     
-    dive_new[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])T(0,)
+    dive_new[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])T(0.01,)
     Enew[i,g,t,u]<-pow((dive_new[i,g,t,u]-eval[i,g,t,u]),2)/(eval[i,g,t,u])
 
     }
@@ -131,8 +131,9 @@ cat("
     #average max depth
     depth_mu[1] ~ dnorm(0,0.001)
     
-    #we know that foraging dives are deeper
-    forage ~ dnorm(0.5,0.001)
+    #we know that foraging dives are probably 0.1km deeper,
+    #but are not more than 0.5 km deeper
+    forage ~ dunif(0.01,0.5)
     depth_mu[2] <- depth_mu[1] + forage
     
     #depth variance
