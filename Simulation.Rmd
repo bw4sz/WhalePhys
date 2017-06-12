@@ -1,33 +1,45 @@
 ---
 title: "Foraging Simulation"
 author: "Ben Weinstein"
-date: `r Sys.time()`
-output: html_document
+date: "`r Sys.time()`"
+output: 
+  html_document:
+    toc: true
+    number_sections: true
+    theme: united
 ---
 
 #Parameters
 
 ## Empirical parameters estimated from whale tagging data
 
-Behavior allocation (Foraging,Traveling) at each time step (Binomial($\alpha$))
+Behavior allocation (Foraging,Traveling) at each time step 
 
-Average maximum depth (LogNormal($\mu = dive_\mu$, sd= \frac{1/dive_\tau}))
+$$state_t \sim(Binomial(\alpha)) $$
 
-Average number of dives (Poisson($lambda = divecount$)
+Average maximum depth 
+
+$$Normal(\mu = dive_\mu, sd= \frac{1}{dive_\tau}) $$
+
+Average number of dives 
+
+$$Poisson(\lambda = dive_{count})$$
 
 ## Parameters estimated from literature 
 
 Initial body mass (M) = 39614 kg (Tyson et al. 2016, Lockyer 1976)
 
-Metabolic rate while traveling ($\m_{traveling}$) = 2.32KJ/sec, Tyson et al. (2016),Williams et al. (2001).
+Metabolic rate while traveling ($m_{traveling}$) = 2.32KJ/sec, Tyson et al. (2016),Williams et al. (2001).
 
-Metabolic rate while foraging ($\m_{foraging}$) = 4.14KJ/sec, Tyson et al. (2016),Williams et al. (2001).
+Metabolic rate while foraging ($m_{foraging}$) = 4.14KJ/sec, Tyson et al. (2016),Williams et al. (2001).
 
-Lunges at depth. $\frac{\text{1 lunge}}{text{50m}}$. Ware 2011 reported ~40 sec interlunge time, with 1.5m/s dive speed. Use this as the mean number in a poisson draw 
+Lunges at depth, Ware 2011 reported ~40 sec interlunge time, with 1.5m/s dive speed. 
 
-$$Lunges \sim Poisson(\lambda=\frac{dive_depth}{50}$$)
+$$Lunges \sim Poisson(\lambda=\frac{\text{dive_depth}}{50}$$
 
-Energetic cost per lunge ($E_{lunge}$) = 298.08K J
+Energetic cost per lunge
+
+$$E_{lunge} = 298.08 KJ$$
 
 **this seems widly too low** 
 
@@ -37,14 +49,12 @@ Metabolic efficiency, energy lost to extretion (Bejarano et al. 2017)
 
 $$ Beta(43.60,5.71) $$
 
-```{r}
-hist(rbeta(1e5,43.60,5.71))
-```
-
-```{r}
+```{r,echo=F,warning=F,message=F}
 library(dplyr)
 library(ggplot2)
 library(truncnorm)
+library(knitr)
+opts_chunk$set(echo=T,warning=F,message=F,fig.width=11)
 ```
 
 ```{r}
@@ -176,7 +186,15 @@ simulation<-function(pars){
   
   #Convert energy to calories
   energy<-energy * pars$metabolic_efficiency
-  return(data.frame(ID=simid,step=1:length(states),state=states,energy=energy))
+  
+  #cumulative energy
+  result<-data.frame(ID=simid,step=1:length(states),state=states,energy=energy)
+  result<-result %>% mutate(cumulative_energy=cumsum(energy))
+  
+  #time
+  result$days<-result$step * pars$t_interval/24
+  
+  return(result)
 }
 ```
 
@@ -189,10 +207,20 @@ for(x in 1:pars$iterations){
 results<-bind_rows(results)
 ```
 
+Raw results
+```{r}
+ggplot(results,aes(x=step,y=cumulative_energy,group=as.factor(ID))) + geom_point() + geom_line() + theme_bw() + labs(y="Cumulative KJ Gain")
+```
+
+Scaled by time
+```{r}
+ggplot(results,aes(x=days,y=cumulative_energy,group=as.factor(ID))) + geom_point() + geom_line() + theme_bw()+ labs(y="Cumulative KJ Gain")
+```
+
 # Future directions
 
 * Variable krill swarm size
 
-* Temporal variation in foraging rates
+* Temporal variation in foraging rates, depths
 
 * Explicitely spatial structure, movement, krill swarms, etc.
