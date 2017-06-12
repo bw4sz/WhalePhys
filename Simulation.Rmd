@@ -1,11 +1,9 @@
 ---
-title: "Simulation"
+title: "Foraging Simulation"
 author: "Ben Weinstein"
-date: "June 5, 2017"
+date: `r Sys.time()`
 output: html_document
 ---
-
-# Aim
 
 #Parameters
 
@@ -21,21 +19,47 @@ Average number of dives (Poisson($lambda = divecount$)
 
 Initial body mass (M) = 39614 kg (Tyson et al. 2016, Lockyer 1976)
 
-Metabolic rate while traveling ($\m_{traveling}$) = 2.32/sec, Tyson et al. (2016),Williams et al. (2001).
+Metabolic rate while traveling ($\m_{traveling}$) = 2.32KJ/sec, Tyson et al. (2016),Williams et al. (2001).
 
-Metabolic rate while traveling ($\m_{foraging}$) = 4.14/sec, Tyson et al. (2016),Williams et al. (2001).
+Metabolic rate while traveling ($\m_{foraging}$) = 4.14KJ/sec, Tyson et al. (2016),Williams et al. (2001).
 
-Lunges per dive depth (Ware 2011 suggests that the time between lunges is 40 seconds, how to turn that into a function of depth, )
-Energetic cost per lunge ($E_{lunge}) = 298 080 J
+Lunges at depth. $\frac{\text{1 lunge}}{text{50m}}$. Ware 2011 reported ~40 sec interlunge time, with 1.5m/s dive speed. Use this as the mean number in a poisson draw 
 
-Krill value per lunge=11kg
+$$Lunges \sim Poisson(\lambda=\frac{dive_depth}{50}$$)
 
-Metabolic efficiency,
+Energetic cost per lunge ($E_{lunge}$) = 298.08K J
 
-The recent bottlenose paper has
+**this seems widly too low** 
+
+Energetic gain per lunge 41KJ/sec (Tyson et al 2016) * 15.5 sec = 635 KJ per lunge
+
+Metabolic efficiency, energy lost to extretion (Bejarano et al. 2017)
+
+$$ Beta(43.60,5.71) $$
 
 ```{r}
 hist(rbeta(1e5,43.60,5.71))
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(truncnorm)
+```
+
+```{r}
+#encode foraging parameters
+pars<-list(
+  draws=120, ## number of 6 hour periods
+  depth_mu2 = 0.22 , ## Average dive depth
+  depth_tau2 = sqrt(1/92) ,## variance in dive depth
+  lambda_count2=4.5, ## average number of dives during foraging
+  lgain=635, ## KJ gain per lunge
+  lcost=298, ## KJ cost per lunche
+  lungef=50*1000, ## Number of lunges per X km depth
+  mass= 39614, ## initial mass of whale
+  metabolic_efficiency=rbeta(1,43.60,5.71) ## % efficiency of metabolic action (loss to extretion)
+  )
 ```
 
 ```{r}
@@ -64,6 +88,22 @@ return(states)
 ```
 
 ```{r}
+#foraging energy functions
+sim_lunges<-function(divedepth){
+  rpois(divedepth * pars$lungef)
+}
+
+sim_lcost<-function(lunges){
+  return(lunges*pars$lcost)
+}
+
+sim_lgain<-function(lunges){
+  return(lunges *pars$lgain )
+}
+```
+
+
+```{r}
 #Traveling state function
 
 traveling_state<-function(pars){
@@ -87,7 +127,7 @@ foraging_state<-function(pars){
     for(dive in 1:divecount){
       
       #dive length
-      divedepth<-rnorm(1,pars$depth_mu2,pars$depth_tau2)  
+      divedepth<-rtruncnorm(1,pars$depth_mu2,pars$depth_tau2,a=0.01)  
       
       #lunges 
       lunges<-sim_lunges(divedepth)
@@ -109,37 +149,38 @@ foraging_state<-function(pars){
 ```
 
 ```{r}
-
-#Simulation ID
-
-#format parameter sheet
-generate_pars<-function(){
-  simid<-runif(1,0,10000000)
-  
-}
-
 simulation<-function(pars){
+  
+  simid<-runif(1,0,10000000)
   
   #foraging states in a given time interval
   states<-behavior(pars)
   
+  energy<-c()
   #time foraging periods
   for (state in 1:states){
     
     #if foraging
     if(state==1){
-      energy[x]<-foraging_state()
+      energy[x]<-foraging_state(pars)
     } else{
-      energy[x]<-traveling()
+      energy[x]<-traveling(pars)
     }
   }
   
   #Convert energy to calories
-  energy * metabolic_efficiency
-  
+  energy<-energy * metabolic_efficiency
+  return(data.frame(pars$simid,1:states,energy))
 }
 ```
 
+```{r}
+results<-list()
+for(x in 1:length(iterations) ){
+  results[[x]]<-simulation()
+}
+results<-bind_rows(results)
+```
 
 # Future directions
 
