@@ -2,7 +2,7 @@
 Ben G. Weinstein, Jeremy Goldbogen and Ari S. Friedlaender
 
 ## Source Code
-- [Emprical Dive Analysis](RunModel.html)
+- [Dive Analysis](RunModel.html)
 - [Simulations](Simulation.html)
 
 
