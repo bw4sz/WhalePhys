@@ -27,23 +27,31 @@ $$Poisson(\lambda = dive_{count})$$
 
 ## Parameters estimated from literature 
 
-Initial body mass (M) = 39614 kg (Tyson et al. 2016, Lockyer 1976)
+Initial body mass (Tyson et al. 2016, Lockyer 1976)
 
-Metabolic rate while traveling ($m_{traveling}$) = 2.32KJ/sec, Tyson et al. (2016),Williams et al. (2001).
+$$M = 39614 kg $$
 
-Metabolic rate while foraging ($m_{foraging}$) = 4.14KJ/sec, Tyson et al. (2016),Williams et al. (2001).
+Metabolic rate while traveling Tyson et al. (2016),Williams et al. (2001).
+
+$$m_{traveling} = -2.32 \frac{KJ}{sec} $$
+
+Metabolic rate while foraging Tyson et al. (2016),Williams et al. (2001).
+
+$$m_{foraging} = -4.14 \frac{KJ}{sec}$$
 
 Lunges at depth, Ware 2011 reported ~40 sec interlunge time, with 1.5m/s dive speed. 
 
-$$Lunges \sim Poisson(\lambda=\frac{\text{dive_depth}}{50}$$
+$$Lunges \sim Poisson(\lambda=\frac{\text{dive_depth}}{50})$$
 
-Energetic cost per lunge
+Energetic cost per lunge (Tyson et al. 2016)
 
-$$E_{lunge} = 298.08 KJ$$
+$$E_{lunge} = -298.08 KJ$$
 
 **this seems widly too low** 
 
-Energetic gain per lunge 41KJ/sec (Tyson et al 2016) * 15.5 sec = 635 KJ per lunge
+Energetic gain per lunge 41KJ/sec (Tyson et al 2016) and 15.5 sec per lunge (Ware et al. 2011)
+
+$$41 \frac{KJ}{sec} * 15.5 \frac{sec}{lunge} = 635 \frac{KJ}{Lunge}$$
 
 Metabolic efficiency, energy lost to extretion (Bejarano et al. 2017)
 
@@ -54,13 +62,13 @@ library(dplyr)
 library(ggplot2)
 library(truncnorm)
 library(knitr)
-opts_chunk$set(echo=T,warning=F,message=F,fig.width=11)
+opts_chunk$set(echo=F,warning=F,message=F,fig.width=11)
 ```
 
 ```{r}
 #encode foraging parameters
 pars<-list(
-  iterations=10,## run simulation loop
+  iterations=20,## run simulation loop
   draws=120, ## number of 6 hour periods
   t_interval=6, ## time interval in hours,
   alpha=read.csv("Data/Alpha.csv"), ##empirical transition probability
@@ -125,7 +133,7 @@ sim_lgain<-function(lunges){
 traveling_state<-function(pars){
     
     #Cost of traveling
-    energy<-pars$metabolic_traveling * pars$t_interval ##metabolic cost of traveling 
+    energy<-pars$metabolic_traveling * pars$t_interval * 3600 ##metabolic cost of traveling 
     
   return(energy)
   }
@@ -217,10 +225,23 @@ Scaled by time
 ggplot(results,aes(x=days,y=cumulative_energy,group=as.factor(ID))) + geom_point() + geom_line() + theme_bw()+ labs(y="Cumulative KJ Gain")
 ```
 
-# Future directions
+# Questions and Improvements
+
+* How to convert from energy to grams? Weight of blubber?
+* Need to improve the dive count mixture distribution
+* Include dive duration, where would it help inference?
+* Are we double containing metabolic costs of foraging and costs of lunges?
+* Mass specific effects?
+* Parameter bounds for all variables
+
+# Future simulation directions
 
 * Variable krill swarm size
+
+* Variable krill quality
 
 * Temporal variation in foraging rates, depths
 
 * Explicitely spatial structure, movement, krill swarms, etc.
+ 
+* Sensitivity
