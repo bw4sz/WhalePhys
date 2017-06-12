@@ -336,6 +336,7 @@ ggplot(alpha,aes(x=value)) + geom_histogram() + facet_wrap(~Behavior) + labs(x="
 #label previous and prediction state, treat traveling as a success and foraging as a failure in a binomial trial
 alpha[alpha$Behavior=="Traveling->Traveling","Previous_State"]<-1
 alpha[alpha$Behavior=="Foraging->Traveling","Previous_State"]<-0
+write.csv(alpha,"Data/Alpha.csv",row.names=F)
 ```
 
 ### Time foraging as a function of time
@@ -364,6 +365,7 @@ return(total_foraging)
 }
 
 states<-foraging_time(alpha=alpha,draw=20,step=12)
+
 ```
 
 This allows us to specify the hours foraging while capturing our uncertainty in behavioral states
