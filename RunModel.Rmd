@@ -431,7 +431,7 @@ pred_dives<-bind_rows(travel_dives,forage_dives)
 
 ggplot(pred_dives)  + geom_histogram(data=mdat,aes(x=DurationMax),col="black")+ geom_histogram(alpha=0.8,aes(x=Maxduration,fill=Behavior))  + theme_bw() 
 
-ggplot(pc_dive[pc_dive$parameter=="dive_new",])+  geom_density(aes(x=value),col="red") + geom_density(data=mdat,aes(x=MaxDuration),col="black",size=1.5) + theme_bw() 
+ggplot(pc_dive[pc_dive$parameter=="dive_new",])+  geom_density(aes(x=value),col="red") + geom_density(data=mdat,aes(x=DurationMax),col="black",size=1.5) + theme_bw() 
 ```
 
 ##Distribution of average dive counts per step
