@@ -40,8 +40,7 @@ Dive information is a mixture model based on behavior (S)
 
 $\text{Average dive depth}(\psi)$
 $$ \psi \sim Normal(dive_{\mu_S},dive_{\tau_S})$$
-$\text{Average number of dives }(\omega)$
-$$ \omega \sim Poisson(\lambda_S)$$
+
 ```{r,echo=F,warning=F,message=F}
 library(tidyr)
 library(ggplot2)
@@ -90,8 +89,7 @@ gdat$Date<-as.POSIXct(gdat$Date,format="%H:%M:%S %d-%b-%Y",tz="Etc/GMT+3")
 f<-list.files("/Users/Ben/Dropbox/Whales/Data/Humpback/",pattern="Behavior",full.names=T,recursive = T)
 
 #test data set  [0:2]
-dat<-bind_rows(lapply(f,read.csv)[0:10])
-#dat<-bind_rows(lapply(f,read.csv))
+dat<-bind_rows(lapply(f,read.csv))
 dat$GMTtime<-as.POSIXct(dat$End,format="%H:%M:%S %d-%b-%Y",tz="Etc/GMT+3")
   
 #local time
@@ -119,6 +117,14 @@ dive<-dive %>% arrange(Animal,timestamp)
 dive<-dive[!duplicated(dive),]
 ```
 
+Dive profiles per indidivuals
+
+```{r}
+ggplot(dive,aes(x=timestamp,y=-DepthMax)) + geom_point(size=0.1) + geom_line(size=0.1) + facet_wrap(~Animal,scales="free") + theme_bw()
+ggsave("Figures/perindividual.jpeg",height=6,width=12)
+```
+
+
 ```{r}
 ##Merge with geographic data and format for JAGS
 messages<-dat %>% filter(dat$What=="Message")
@@ -140,7 +146,7 @@ mdat<-merge(dat,message_join,by="ID")
 mdat<-mdat %>% filter(What=="Dive")
 
 #The maxiumum dive depth based on the geographic message
-mdat<-mdat %>% select(ID,Animal,Latitude,Longitude,timestamp,Date,Month,Hour,Year,DepthMax,Quality) 
+mdat<-mdat %>% select(ID,Animal,Latitude,Longitude,timestamp,Date,Month,Hour,Year,DepthMax,DurationMax,Quality) 
 
 mdat<-mdat %>% group_by(ID,Animal) %>% slice(which.max(DepthMax)) %>% arrange(Animal,timestamp) %>% filter(!is.na(Latitude))
 
@@ -153,8 +159,11 @@ b<-d[!is.na(d %over% cropoly)[,2],]
 
 mdat<-b@data
 
-#set max dpeth to km
+#set max depth to km
 mdat$DepthMax<-mdat$DepthMax/1000
+
+#Calculate dive "speed" Seconds/max depth
+mdat$DiveSpeed<-mdat$DepthMax*1000/mdat$DurationMax
 
 #view data
 ggplot(data=mdat)+geom_path(aes(x=Longitude, y=Latitude,group=Animal),size=.5) + geom_point(aes(x=Longitude, y=Latitude,col=DepthMax))+ borders(fill="grey90") + coord_cartesian(ylim = range(mdat$Latitude),xlim=range(mdat$Longitude)) + theme_bw() + mytheme + scale_color_continuous(low="blue",high="red") + labs(col="Max Dive Depth (km)")
@@ -207,7 +216,7 @@ mdat<-bind_rows(sxy)
 
 ###################################################
 #filter by two whales for the moment
-mdat<-mdat %>% filter(Animal %in% c("131127","131136"))
+#mdat<-mdat %>% filter(Animal %in% c("131127","131136"))
 #mdat<-mdat %>% filter(Animal %in% c("131127"))
 ####################################################
 
@@ -258,7 +267,7 @@ maxdive<-reshape2::acast(mdat,Animal~Track~step~jStep,value.var="DepthMax",fun.a
 maxdive[!is.finite(maxdive)]<-NA
 
 #average number of dives
-divecount<-reshape2::acast(mdat,Animal~Track~step,value.var="DepthMax",fun.aggregate = length)
+divespeed<-reshape2::acast(mdat,Animal~Track~step,value.var="DiveSpeed",fun.aggregate = length)
 
 #no dives, fill empty
 divecount[divecount==0]<-NA
@@ -277,10 +286,10 @@ R <- diag(c(1,1))
 data=list(divecount=divecount,dive=maxdive,argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tracks,argos_class=obs_class)
 
 #paramters to track
-pt<-c("alpha","depth_mu","depth_tau","dive_new","state","lambda_count","E","Enew")
+pt<-c("alpha","depth_mu","depth_tau","dive_new","state","E","Enew")
 
 if(newModel){
-  system.time(diving<-jags.parallel(model.file = "Bayesian/Diving.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10000,n.burnin=9500,n.thin=2,DIC=FALSE))
+  system.time(diving<-jags.parallel(model.file = "Bayesian/Diving.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=100000,n.burnin=99000,n.thin=2,DIC=FALSE))
   }
 
 ```
@@ -298,7 +307,7 @@ pc_dive$parameter<-data.frame(str_match(pc_dive$par,"(\\w+)"))[,-1]
 splitpc<-split(pc_dive,pc_dive$parameter)
 
 #single index
-splitpc[c("alpha","depth_mu","depth_tau","lambda_count")]<-lapply(splitpc[c("alpha","depth_mu","depth_tau","lambda_count")],function(x){
+splitpc[c("alpha","depth_mu","depth_tau")]<-lapply(splitpc[c("alpha","depth_mu","depth_tau")],function(x){
     sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+)]"))[,3]
     pc<-data.frame(x,Behavior=sv)
     return(pc)
@@ -408,25 +417,6 @@ ggplot(pred_dives)  + geom_histogram(data=mdat,aes(x=DepthMax),col="black")+ geo
 ggplot(pc_dive[pc_dive$parameter=="dive_new",])+  geom_density(aes(x=value),col="red") + geom_density(data=mdat,aes(x=DepthMax),col="black",size=1.5) + theme_bw() 
 ```
 
-##Distribution of average dive counts
-
-```{r}
-## Simulate dive counts
-count_lambda1<-pc_dive %>% filter(parameter %in% c("lambda_count"),Behavior==1)
-count_lambda2<-pc_dive %>% filter(parameter %in% c("lambda_count"),Behavior==2)
-
-statecount<-pc_dive %>% filter(parameter=="state") %>% group_by(Animal,Track,step) %>% summarize(state=names(sort(table(value)))[1]) %>% group_by(state) %>% summarize(n=n()) %>% data.frame()
-
-travel_counts<-data.frame(Counts=rpois(statecount[1,"n"],count_lambda1$value),Behavior="Traveling")
-forage_counts<-data.frame(Counts=rpois(statecount[2,"n"],count_lambda2$value),Behavior="Foraging")
-
-#calculate observed
-obs_count<-mdat %>% group_by(Animal,Track,step) %>% summarize(Counts=n())
-
-pred_counts<-bind_rows(travel_counts,forage_counts)
-ggplot(pred_counts) + geom_histogram(data=obs_count,aes(x=Counts),col="black") + theme_bw() + geom_histogram(alpha=0.7,aes(x=Counts,fill=Behavior)) 
-```
-
 # Temporal Variation in Dive Behavior
 
 ```{r}
@@ -442,18 +432,26 @@ mdat$Animal<-as.factor(mdat$Animal)
 mdat$Track<-as.factor(mdat$Track)
 mdat$step<-as.factor(mdat$step)
 
-state_est<-pc_dive %>% group_by(Animal,Track,step) %>% filter(parameter=="state") %>% summarize(Behavior =Mode(value)) %>% inner_join(mdat)
-
 state_est[state_est$Behavior==1,"Behavior"]<-"Traveling"
 state_est[state_est$Behavior==2,"Behavior"]<-"Foraging"
 ```
 
+```{r}
+ggplot(state_est,aes(x=timestamp,y=-DepthMax,col=Behavior)) + geom_point() + geom_line(size=0.25) + facet_wrap(~Animal,scales="free") + theme_bw()
+ggsave("Figures/TemporalBehavior.svg")
+ggsave("Figures/TemporalBehavior.jpeg",height=8,width=12)
+
+```
 ## Diel
 
 ```{r}
 ggplot(data=state_est) + geom_boxplot(aes(x=Hour,y=DepthMax,fill=Behavior)) + ylab("Maximum Dive Depth (km)")
 ggsave("Figures/Diel.svg")
 ggsave("Figures/Diel.png",height=5,width=8,unit="in")
+
+ggplot(data=state_est) + geom_boxplot(aes(x=Hour,y=DepthMax,fill=Behavior)) + ylab("Maximum Dive Depth (km)") + facet_wrap(~Month)
+ggsave("Figures/DielbyMonth.svg")
+ggsave("Figures/DielbyMonth.png",height=5,width=10,unit="in")
 ```
 
 ## Month
