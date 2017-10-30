@@ -51,6 +51,9 @@
     #Gaussian Displacement in location
     y[i,g,t+1,1:2] ~ dmnorm(d[i,g,t,1:2],iSigma)
 
+    #number of dives per step length    
+    divecount[i,g,t] ~ dpois(lambda_count[state[i,g,t]])
+
     }
     
     #Final behavior state
@@ -74,6 +77,9 @@
     #for each dive depth
     #dive depth at time t
     dive[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])T(0.01,)
+    
+    #dive speed (max depth/duration)
+    duration[i,g,t,u] ~ dnorm(duration_mu[state[i,g,t]],duration_tau[state[i,g,t]])
 
     #Assess Model Fit
     
@@ -131,7 +137,18 @@
     #but are not more than 0.5 km deeper
     forage ~ dunif(0.01,0.5)
     depth_mu[2] <- depth_mu[1] + forage
+
+    #speed = depth/duration priors
+    duration_mu[1] ~ dunif(0,3600)
+    duration_mu[2] ~ dunif(0,3600)
+
+    duration_tau[1] ~ dgamma(0.0001,0.0001)
+    duration_tau[2] ~ dgamma(0.0001,0.0001)
     
+    #Dive counts, there can't be more than about 20 dives in a 6 hour period.
+    lambda_count[1] ~ dunif(0,20)
+    lambda_count[2] ~ dunif(0,20)
+
     #depth variance
     depth_tau[1] ~ dgamma(0.0001,0.0001)
     depth_tau[2] ~ dgamma(0.0001,0.0001)
