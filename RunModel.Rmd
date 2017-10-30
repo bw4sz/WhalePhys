@@ -258,17 +258,10 @@ obs_class<-reshape2::acast(mdat,Animal~Track~step~jStep,value.var="numargos",fun
 obs_class[!is.finite(obs_class)]<-NA
 
 #average dive depth array
-maxdive<-reshape2::acast(mdat,Animal~Track~step~jStep,value.var="DepthMax",fun.aggregate = mean)
+maxdive<-reshape2::acast(mdat,Animal~Track~step,value.var="DepthMax",fun.aggregate = mean)
 
 #fill the empty values
 maxdive[!is.finite(maxdive)]<-NA
-
-#average number of dives
-diveduration<-reshape2::acast(mdat,Animal~Track~step~jStep,value.var="DurationMax")
-
-#no dives, fill empty
-divecount<-reshape2::acast(mdat,Animal~Track~step,value.var="DepthMax",fun.aggregate = length)
-divecount[divecount==0]<-NA
 ```
 
 
@@ -281,10 +274,10 @@ source("Bayesian/Diving.R")
 
 #prior cov shape
 R <- diag(c(1,1))
-data=list(duration=diveduration,divecount=divecount,dive=maxdive,argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tracks,argos_class=obs_class)
+data=list(dive=maxdive,argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tracks,argos_class=obs_class)
 
 #paramters to track
-pt<-c("alpha","lambda_count","duration_mu","duration_tau","depth_mu","depth_tau","dive_new","state","E","Enew")
+pt<-c("alpha","beta","state")
 
 if(newModel){
   system.time(diving<-jags.parallel(model.file = "Bayesian/Diving.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=100,n.burnin=0,n.thin=2,DIC=FALSE))
@@ -305,7 +298,7 @@ pc_dive$parameter<-data.frame(str_match(pc_dive$par,"(\\w+)"))[,-1]
 splitpc<-split(pc_dive,pc_dive$parameter)
 
 #single index
-splitpc[c("alpha","depth_mu","depth_tau","duration_mu","duration_tau","lambda_count")]<-lapply(splitpc[c("alpha","depth_mu","depth_tau","duration_mu","duration_tau","lambda_count")],function(x){
+splitpc[c("alpha")]<-lapply(splitpc[c("alpha")],function(x){
     sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+)]"))[,3]
     pc<-data.frame(x,Behavior=sv)
     return(pc)
@@ -319,18 +312,11 @@ splitpc[c("state")]<-lapply(splitpc[c("state")],function(x){
     return(pc)
 }) 
 
-#4 index
-splitpc[c("dive_new","E","Enew")]<-lapply(splitpc[c("dive_new","E","Enew")],function(x){
-    sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+),(\\d+),(\\d+),(\\d+)]"))[,3:6]
-    colnames(sv)<-c("Animal","Track","step","jStep")
-    pc<-data.frame(x,sv)
-    return(pc)
-}) 
 #bind all matrices back together
 pc_dive<-bind_rows(splitpc)
 rm(splitpc)
 
-ggplot(pc_dive[!pc_dive$parameter %in% c("dive_new","state","E","Enew","eval"),],aes(x=Draw,y=value,col=as.factor(chain))) + geom_line() + facet_wrap(~par,scales="free")
+ggplot(pc_dive[!pc_dive$parameter %in% c("state"),],aes(x=Draw,y=value,col=as.factor(chain))) + geom_line() + facet_wrap(~par,scales="free")
 ```
 
 ## Empirical distribution of foraging 
