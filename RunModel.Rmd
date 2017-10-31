@@ -52,6 +52,7 @@ library(dplyr)
 library(stringr)
 library(chron)
 library(R2jags)
+library(boot)
 library(knitr)
 library(truncnorm)
 
@@ -140,13 +141,13 @@ setkey(gdat,Ptt, Date)    ## same as above
 ans = gdat[messages, roll=Inf] ## perform rolling join
 ans<-as.data.frame(ans)
 
-message_join<-ans %>% select(Date,Animal=Ptt,Date,Quality,Latitude,Longitude,ID)
+message_join<-ans %>% dplyr::select(Date,Animal=Ptt,Date,Quality,Latitude,Longitude,ID)
 
 mdat<-merge(dat,message_join,by="ID")
 mdat<-mdat %>% filter(What=="Dive")
 
 #The maxiumum dive depth based on the geographic message
-mdat<-mdat %>% select(ID,Animal,Latitude,Longitude,timestamp,Date,Month,Hour,Year,DepthMax,DurationMax,DurationMin,Quality) 
+mdat<-mdat %>% dplyr::select(ID,Animal,Latitude,Longitude,timestamp,Date,Month,Hour,Year,DepthMax,DurationMax,DurationMin,Quality) 
 
 mdat<-mdat %>% group_by(ID,Animal) %>% slice(which.max(DepthMax)) %>% arrange(Animal,timestamp) %>% filter(!is.na(Latitude))
 
@@ -213,7 +214,7 @@ mdat<-bind_rows(sxy)
 
 ###################################################
 #filter by two whales for the moment
-mdat<-mdat %>% filter(Animal %in% c("131127","131136"))
+#mdat<-mdat %>% filter(Animal %in% c("131127","131136"))
 #mdat<-mdat %>% filter(Animal %in% c("131127"))
 ####################################################
 
@@ -280,7 +281,7 @@ data=list(dive=maxdive,argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=trac
 pt<-c("alpha","beta","state")
 
 if(newModel){
-  system.time(diving<-jags.parallel(model.file = "Bayesian/Diving.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=100,n.burnin=0,n.thin=2,DIC=FALSE))
+  system.time(diving<-jags.parallel(model.file = "Bayesian/Diving.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=20000,n.burnin=19500,n.thin=2,DIC=FALSE))
   }
 
 ```
@@ -316,10 +317,25 @@ splitpc[c("state")]<-lapply(splitpc[c("state")],function(x){
 pc_dive<-bind_rows(splitpc)
 rm(splitpc)
 
-ggplot(pc_dive[!pc_dive$parameter %in% c("state"),],aes(x=Draw,y=value,col=as.factor(chain))) + geom_line() + facet_wrap(~par,scales="free")
+ggplot(pc_dive[!pc_dive$parameter %in% c("state"),],aes(x=Draw,y=value,col=as.factor(chain))) + geom_line() + facet_wrap(~par,scales="free") + theme_bw() + labs(col="Chain")
 ```
 
-## Empirical distribution of foraging 
+Effect of dive depth on foraging state
+
+```{r}
+beta<-pc_dive %>% filter(parameter=="beta")
+
+divecov<-bind_rows(lapply(beta$value,function(x){
+  pForaging<-1-inv.logit(x * mdat$DepthMax)
+  divecov<-data.frame(DepthMax=mdat$DepthMax,p=pForaging)
+}))
+
+divecov<-divecov %>% group_by(DepthMax) %>% summarise(mean=mean(p),upper=quantile(p,0.95),lower=quantile(p,0.05))
+
+ggplot(divecov,aes(x=DepthMax*1000,y=mean)) + geom_ribbon(aes(ymax=upper,ymin=lower),alpha=0.5)+ geom_line(linetype="dashed",col="red") +  theme_bw() + labs(x="Dive Depth (m)",y="Probability of Traveling")
+```
+
+## Temporal autocorrelation in foraging 
 
 ```{r}
 alpha<-pc_dive %>% filter(parameter=="alpha")
@@ -364,80 +380,6 @@ states<-foraging_time(alpha=alpha,draw=20,step=12)
 
 ```
 
-This allows us to specify the hours foraging while capturing our uncertainty in behavioral states
-
-For example, if we wanted to know how many hours an animal was predicted to forage on average over a 10 day span. We can draw 100 simulations given the posterior distributions of our empirical model.
-
-```{r}
-test_time<-sapply(1:1000,function(x){
-  foraging_time(alpha=alpha,draw=20,step=12)
-})
-paste("Mean foraging hours:", mean(test_time),sep=" ")
-
-qplot(test_time) +ggtitle("Foraging Time (10 Days)") +xlab("Hours")
-```
-
-##Distribution of average max dive depths
-
-```{r}
-## Simulate dive depth
-depth_mu1<-pc_dive %>% filter(parameter %in% c("depth_mu"),Behavior==1)
-depth_mu2<-pc_dive %>% filter(parameter %in% c("depth_mu"),Behavior==2)
-depth_tau1<-pc_dive %>% filter(parameter %in% c("depth_tau"),Behavior==1)
-depth_tau2<-pc_dive %>% filter(parameter %in% c("depth_tau"),Behavior==2)
-
-#how many of each state to draw?
-statecount<-pc_dive %>% filter(parameter=="state") %>% group_by(Animal,Track,step) %>% summarize(state=names(sort(table(value)))[1]) %>% ungroup() %>% mutate(Animal=as.numeric(as.character(Animal)),Track=as.numeric(as.character(Track))) %>% inner_join(mdat,by=c("Animal","Track","step")) %>% group_by(state) %>% summarize(n=n()) %>% data.frame()
-
-#simulate dives 
-travel_dives<-data.frame(MaxDepth=rtruncnorm(statecount[1,"n"], mean=depth_mu1$value,sd=sqrt(1/depth_tau1$value),a=0),Behavior="Traveling")
-forage_dives<-data.frame(MaxDepth=rtruncnorm(statecount[2,"n"], mean=depth_mu2$value,sd=sqrt(1/depth_tau2$value),a=0),Behavior="Foraging")
-pred_dives<-bind_rows(travel_dives,forage_dives)
-
-ggplot(pred_dives)  + geom_histogram(data=mdat,aes(x=DepthMax),col="black")+ geom_histogram(alpha=0.8,aes(x=MaxDepth,fill=Behavior))  + theme_bw() 
-
-ggplot(pc_dive[pc_dive$parameter=="dive_new",])+  geom_density(aes(x=value),col="red") + geom_density(data=mdat,aes(x=DepthMax),col="black",size=1.5) + theme_bw() 
-```
-##Distribution of average max dive durations
-
-```{r}
-## Simulate dive durations
-duration_mu1<-pc_dive %>% filter(parameter %in% c("duration_mu"),Behavior==1)
-duration_mu2<-pc_dive %>% filter(parameter %in% c("duration_mu"),Behavior==2)
-duration_tau1<-pc_dive %>% filter(parameter %in% c("duration_tau"),Behavior==1)
-duration_tau2<-pc_dive %>% filter(parameter %in% c("duration_tau"),Behavior==2)
-
-#how many of each state to draw?
-statecount<-pc_dive %>% filter(parameter=="state") %>% group_by(Animal,Track,step) %>% summarize(state=names(sort(table(value)))[1]) %>% ungroup() %>% mutate(Animal=as.numeric(as.character(Animal)),Track=as.numeric(as.character(Track))) %>% inner_join(mdat,by=c("Animal","Track","step")) %>% group_by(state) %>% summarize(n=n()) %>% data.frame()
-
-#simulate dives 
-travel_dives<-data.frame(Maxduration=rtruncnorm(statecount[1,"n"], mean=duration_mu1$value,sd=sqrt(1/duration_tau1$value),a=0),Behavior="Traveling")
-forage_dives<-data.frame(Maxduration=rtruncnorm(statecount[2,"n"], mean=duration_mu2$value,sd=sqrt(1/duration_tau2$value),a=0),Behavior="Foraging")
-pred_dives<-bind_rows(travel_dives,forage_dives)
-
-ggplot(pred_dives)  + geom_histogram(data=mdat,aes(x=DurationMax),col="black")+ geom_histogram(alpha=0.8,aes(x=Maxduration,fill=Behavior))  + theme_bw() 
-
-ggplot(pc_dive[pc_dive$parameter=="dive_new",])+  geom_density(aes(x=value),col="red") + geom_density(data=mdat,aes(x=DurationMax),col="black",size=1.5) + theme_bw() 
-```
-
-##Distribution of average dive counts per step
-
-```{r}
-## Simulate dive counts
-count_lambda1<-pc_dive %>% filter(parameter %in% c("lambda_count"),Behavior==1)
-count_lambda2<-pc_dive %>% filter(parameter %in% c("lambda_count"),Behavior==2)
-
-statecount<-pc_dive %>% filter(parameter=="state") %>% group_by(Animal,Track,step) %>% summarize(state=names(sort(table(value)))[1]) %>% group_by(state) %>% summarize(n=n()) %>% data.frame()
-
-travel_counts<-data.frame(Counts=rpois(statecount[1,"n"],count_lambda1$value),Behavior="Traveling")
-forage_counts<-data.frame(Counts=rpois(statecount[2,"n"],count_lambda2$value),Behavior="Foraging")
-
-#calculate observed
-obs_count<-mdat %>% group_by(Animal,Track,step) %>% summarize(Counts=n())
-
-pred_counts<-bind_rows(travel_counts,forage_counts)
-ggplot(pred_counts) + geom_histogram(data=obs_count,aes(x=Counts),col="black") + theme_bw() + geom_histogram(alpha=0.7,aes(x=Counts,fill=Behavior)) 
-```
 # Temporal Variation in Dive Behavior
 
 ```{r}
@@ -453,14 +395,14 @@ mdat$Animal<-as.factor(mdat$Animal)
 mdat$Track<-as.factor(mdat$Track)
 mdat$step<-as.factor(mdat$step)
 
-state_est<-pc_dive %>% group_by(Animal,Track,step) %>% filter(parameter=="state") %>% summarize(Behavior =Mode(value)) %>% inner_join(mdat)
+state_est<-pc_dive %>% group_by(Animal,Track,step) %>% filter(parameter=="state") %>% summarize(Behavior=Mode(value)) %>% inner_join(mdat)
 
 state_est[state_est$Behavior==1,"Behavior"]<-"Traveling"
 state_est[state_est$Behavior==2,"Behavior"]<-"Foraging"
 ```
 
 ```{r}
-ggplot(state_est,aes(x=timestamp,y=-DepthMax,col=Behavior)) + geom_point() + geom_line(size=0.25) + facet_wrap(~Animal,scales="free") + theme_bw()
+ggplot(state_est,aes(x=timestamp,y=-DepthMax,col=Behavior)) + geom_point() + geom_line(size=0.25,aes(group=1)) + facet_wrap(~Animal,scales="free") + theme_bw()
 ggsave("Figures/TemporalBehavior.svg")
 ggsave("Figures/TemporalBehavior.jpeg",height=8,width=12)
 
@@ -485,23 +427,196 @@ ggsave("Figures/Month.svg")
 ggsave("Figures/Month.png",height=5,width=8,unit="in")
 ```
 
-## Posterior Checks
 
-The goodness of fit is a measured as chi-squared. The expected value is compared to the observed value of the actual data. In addition, a replicate dataset is generated from the posterior predicted intensity. Better fitting models will have lower discrepancy values and be 
-Better fitting models are smaller values and closer to the 1:1 line. A perfect model would be 0 discrepancy. This is unrealsitic given the stochasticity in the sampling processes. Rather, its better to focus on relative discrepancy. In addition, a model with 0 discrepancy would likely be seriously overfit and have little to no predictive power.
+# Comparison with 2d movement model
 
-```{r,fig.height=4,fig.width=8,message=F,warning=F}
+* Movement model
 
-fitstat<-pc_dive %>% filter(parameter %in% c("E","Enew")) %>% group_by(parameter,Draw,chain) %>% summarize(fit=mean(value))
+```{r,eval=T}
+#source jags file
+source("Bayesian/Foraging.R")
 
-fitstat<-dcast(fitstat,Draw+chain~parameter,value.var="fit")
+#prior cov shape
+R <- diag(c(1,1))
+data=list(argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tracks,argos_class=obs_class)
 
-ymin<-min(c(fitstat$E,fitstat$Enew)) - min(c(fitstat$E,fitstat$Enew)) * .2
-ymax<-max(c(fitstat$E,fitstat$Enew)) + max(c(fitstat$E,fitstat$Enew)) * .2
-ggplot(fitstat,aes(x=E,y=Enew)) + geom_point() + theme_bw() + labs(x="Discrepancy of observed data",y="Discrepancy of replicated data") + geom_abline() + coord_fixed() + ylim(ymin=ymin,ymax=ymax) + xlim(xmin=ymin,xmax=ymax)
+#paramters to track
+pt<-c("alpha","state")
 
-fitstat %>% group_by() %>% summarize(mean(E),var(Enew))
+if(newModel){
+  system.time(foraging<-jags.parallel(model.file = "Bayesian/Foraging.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=20000,n.burnin=19500,n.thin=2,DIC=FALSE))
+  }
+
 ```
+
+##Chains
+
+```{r,eval=T}
+#bind chains
+pc_dive2d<-reshape2::melt(foraging$BUGSoutput$sims.array)
+colnames(pc_dive2d)<-c("Draw","chain","par","value")
+
+#extract parameter name
+pc_dive2d$parameter<-data.frame(str_match(pc_dive2d$par,"(\\w+)"))[,-1]
+
+#Extract index
+splitpc<-split(pc_dive2d,pc_dive2d$parameter)
+
+#single index
+splitpc[c("alpha")]<-lapply(splitpc[c("alpha")],function(x){
+    sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+)]"))[,3]
+    pc<-data.frame(x,Behavior=sv)
+    return(pc)
+}) 
+
+#3 index
+splitpc[c("state")]<-lapply(splitpc[c("state")],function(x){
+    sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+),(\\d+),(\\d+)"))[,3:5]
+    colnames(sv)<-c("Animal","Track","step")
+    pc<-data.frame(x,sv)
+    return(pc)
+}) 
+
+#bind all matrices back together
+pc_dive2d<-bind_rows(splitpc)
+rm(splitpc)
+
+ggplot(pc_dive2d[!pc_dive2d$parameter %in% c("state"),],aes(x=Draw,y=value,col=as.factor(chain))) + geom_line() + facet_wrap(~par,scales="free")
+```
+
+```{r}
+
+#Take the most common estimate of behavior
+Mode <- function(x) {
+  ux <- unique(x)
+  ux[which.max(tabulate(match(x, ux)))]
+}
+
+#Combine posterior summary
+mdat$Animal<-as.factor(mdat$Animal)
+mdat$Track<-as.factor(mdat$Track)
+mdat$step<-as.factor(mdat$step)
+
+state_est2d<-pc_dive2d %>% group_by(Animal,Track,step) %>% filter(parameter=="state") %>% summarize(Behavior =Mode(value)) %>% inner_join(mdat)
+
+state_est2d[state_est2d$Behavior==1,"Behavior"]<-"Traveling"
+state_est2d[state_est2d$Behavior==2,"Behavior"]<-"Foraging"
+
+state_est$Model<-"2D"
+state_est2d$Model<-"3D"
+
+allmodels<-bind_rows(state_est,state_est2d)
+
+```
+
+```{r}
+ggplot(data=allmodels)+geom_path(aes(x=Longitude, y=Latitude,group=Animal),size=.5) + geom_point(aes(x=Longitude, y=Latitude,col=Behavior))+ borders(fill="grey90") + coord_cartesian(ylim = range(mdat$Latitude),xlim=range(mdat$Longitude)) + theme_bw() + mytheme  + facet_wrap(~Model)
+```
+
+Where does the 3d predict foraging that the 2d misses?
+
+```{r}
+allmodels<-spread(allmodels,Model,Behavior)
+allmodels$Mismatch<-F
+allmodels[allmodels$`2D`=="Traveling" & allmodels$`3D`=="Foraging","Mismatch"]<-TRUE
+
+ggplot(allmodels)+geom_path(aes(x=Longitude, y=Latitude,group=Animal),size=.5) + geom_point(aes(x=Longitude, y=Latitude,col=Mismatch))+ borders(fill="grey90") + coord_cartesian(ylim = range(mdat$Latitude),xlim=range(mdat$Longitude)) + theme_bw() + mytheme + scale_color_manual(values=c("Black","Red"))
+```
+
+
+Where does the 2d predict foraging that the 3d refines?
+
+```{r}
+allmodels$Mismatch<-F
+allmodels[allmodels$`2D`=="Foraging" & allmodels$`3D`=="Traveling","Mismatch"]<-TRUE
+
+ggplot(allmodels)+geom_path(aes(x=Longitude, y=Latitude,group=Animal),size=.5) + geom_point(aes(x=Longitude, y=Latitude,col=Mismatch))+ borders(fill="grey90") + coord_cartesian(ylim = range(mdat$Latitude),xlim=range(mdat$Longitude)) + theme_bw() + mytheme + scale_color_manual(values=c("Black","Red"))
+```
+
+
+* Get spatial distribution
+
+```{r,eval=FALSE}
+#time in each cell function
+  timecell<-function(j){
+    
+    rlej<-rle(x=diff(j$Index))
+    position<-c(1,cumsum(rlej$lengths))
+    timestack<-c()
+    
+    #if only one position
+    if(length(position)==1){
+      timestack[1]<-0
+      
+    } else {
+      
+      #time difference between first and last point in the cell
+        for(x in 2:length(position)){
+          timed<-j[position[x-1]:position[x],]
+          timestack[x-1]<-difftime(max(timed$timestamp),min(timed$timestamp),units="days")
+      }
+    }
+  
+    out<-data.frame(Sum=sum(timestack))
+    return(out)
+  }
+  
+restime<-function(mdat){
+  #raster
+  r<-raster(extent(d)*c(1.1,1.1),nrow=100,ncol=100)
+  
+  #res(r)<-0.25
+  #put cellindex number
+  r[]<-1:ncell(r)
+  
+  sxy<-split(mdat,mdat$Animal)
+  sxy<-lapply(sxy,function(x) {x$Index<-1:nrow(x); return(x)})
+  
+  #loop through all animals
+  sptracks<-lapply(sxy,function(x){
+    k<-SpatialPointsDataFrame(cbind(x$x,x$y),data=x,proj4string=CRS("+proj=longlat +datum=WGS84"))
+    
+    #get the cells that points are in
+    k$cellvalue<-raster::extract(x=r,y=k)
+    
+    #for each cell value, perform time function
+    sptrack<-as.data.frame(k) %>% group_by(Animal,cellvalue) %>% do(timecell(.))
+    return(sptrack)}
+  )
+  
+  sptracks<-rbind_all(sptracks)
+  
+  #get sum across animals
+  cellvals<-sptracks %>% group_by(cellvalue) %>% summarize(Sum=sum(Sum))
+  
+  #is there a better way to loop through?
+  r[]<-NA
+  for(x in 1:nrow(cellvals)){
+    r[cellvals$cellvalue[x]]<-cellvals$Sum[x]
+  }
+  return(r)
+}
+
+plot(restime(mdat))
+
+#split tracks by month data, just get foraging data
+#md<-split(mdat[mdat$bstate %in% "Area-restricted Search",],mdat[mdat$bstate %in% "Area-restricted Search","Month"],drop=T)
+#md<-split(mdat,mdat$Month,drop=T)
+
+r<-stack(lapply(mdat,restime))
+
+plot(r)
+
+#turn to 
+f<-melt(data.frame(rasterToPoints(r)),id.vars=c("Latitude","Longitude"))
+
+#remove NA's
+f<-f %>% filter(!is.na(value))
+
+ggplot() + geom_tile(data=f,aes(x=Longitude,y=Latitude,fill=value))  + scale_fill_continuous(low="blue",high="red") + labs(fill="Days")  + facet_wrap(~variable,nrow=3)  + theme(axis.text.x=element_blank(),axis.text.y=element_blank(),axis.ticks.x=element_blank(),axis.ticks.y=element_blank()) + labs(x="",y="") +  borders(fill="grey70",size=0.5) + coord_cartesian(ylim = c(-69,-62),xlim=c(-55,-72)) + theme_bw() + mytheme
+ggsave("Figures/ResidencyMap.jpg",height=9,width=6,dpi=300)
+```
+
 
 ```{r}
 save.image("/Users/Ben/Dropbox/Whales/Dive/WhalePhys.RData")
