@@ -159,7 +159,17 @@ cropoly<-readShapePoly("Data/CutPolygon.shp",proj4string=CRS("+proj=longlat +dat
 b<-d[!is.na(d %over% cropoly)[,2],]
 
 mdat<-b@data
+```
 
+Data Statistics before track cut
+
+```{r}
+mdat %>% group_by(Animal) %>% summarize(n=n())
+nrow(mdat)
+```
+
+
+```{r}
 #set max depth to km
 mdat$DepthMax<-mdat$DepthMax/1000
 
@@ -169,7 +179,7 @@ ggsave("Figures/Map.svg")
 ggsave("Figures/Map.png")
 
 ##Time is the beginning of the first point.
-step_length=6
+step_length=4
 
 sxy<-split(mdat,mdat$Animal)
 
@@ -211,7 +221,14 @@ return(x)
 })
 
 mdat<-bind_rows(sxy)
+```
 
+Data statistics after track cut
+```{r}
+mdat %>% group_by(Animal) %>% summarize(n=n())
+```
+
+```{r}
 ###################################################
 #filter by two whales for the moment
 #mdat<-mdat %>% filter(Animal %in% c("131127","131136"))
@@ -265,7 +282,6 @@ maxdive<-reshape2::acast(mdat,Animal~Track~step,value.var="DepthMax",fun.aggrega
 maxdive[!is.finite(maxdive)]<-NA
 ```
 
-
 ```{r,child="Bayesian/Diving.R",eval=T}
 ```
 
@@ -278,10 +294,10 @@ R <- diag(c(1,1))
 data=list(dive=maxdive,argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tracks,argos_class=obs_class)
 
 #paramters to track
-pt<-c("alpha","beta","state")
+pt<-c("alpha","beta","state","gamma")
 
 if(newModel){
-  system.time(diving<-jags.parallel(model.file = "Bayesian/Diving.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=50000,n.burnin=49500,n.thin=2,DIC=FALSE))
+  system.time(diving<-jags.parallel(model.file = "Bayesian/Diving.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=100000,n.burnin=99500,n.thin=2,DIC=FALSE))
   }
 
 ```
@@ -401,8 +417,8 @@ state_est[state_est$Behavior==1,"Behavior"]<-"Traveling"
 state_est[state_est$Behavior==2,"Behavior"]<-"Foraging"
 ```
 
-```{r}
-ggplot(state_est,aes(x=timestamp,y=-DepthMax,col=Behavior)) + geom_point() + geom_line(size=0.25,aes(group=1)) + facet_wrap(~Animal,scales="free") + theme_bw()
+```{r,fig.height=20}
+ggplot(state_est,aes(x=timestamp,y=-DepthMax,col=Behavior)) + geom_point() + geom_line(size=0.25,aes(group=1)) + facet_wrap(~Animal,scales="free",ncol=2) + theme_bw()
 ggsave("Figures/TemporalBehavior.svg")
 ggsave("Figures/TemporalBehavior.jpeg",height=8,width=12)
 
@@ -441,10 +457,10 @@ R <- diag(c(1,1))
 data=list(argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tracks,argos_class=obs_class)
 
 #paramters to track
-pt<-c("alpha","state")
+pt<-c("alpha","gamma","state")
 
 if(newModel){
-  system.time(foraging<-jags.parallel(model.file = "Bayesian/Foraging.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=50000,n.burnin=49500,n.thin=2,DIC=FALSE))
+  system.time(foraging<-jags.parallel(model.file = "Bayesian/Foraging.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=100000,n.burnin=99500,n.thin=2,DIC=FALSE))
   }
 
 ```
@@ -510,7 +526,7 @@ allmodels<-bind_rows(state_est,state_est2d)
 ```
 
 ```{r}
-ggplot(data=allmodels)+geom_path(aes(x=Longitude, y=Latitude,group=Animal),size=.5) + geom_point(aes(x=Longitude, y=Latitude,col=Behavior),size=0.5)+ borders(fill="grey90") + coord_cartesian(ylim = range(mdat$Latitude),xlim=range(mdat$Longitude)) + theme_bw() + mytheme  + facet_wrap(~Model)
+ggplot(data=allmodels)+geom_path(aes(x=Longitude, y=Latitude,group=paste(Animal,Track),size=.5)) + geom_point(aes(x=Longitude, y=Latitude,col=Behavior),size=0.5)+ borders(fill="grey90") + coord_cartesian(ylim = range(mdat$Latitude),xlim=range(mdat$Longitude)) + theme_bw() + mytheme  + facet_wrap(~Model)
 ```
 
 Where does the 3d predict foraging that the 2d misses?
@@ -520,7 +536,7 @@ allmodels<-spread(allmodels,Model,Behavior)
 allmodels$Mismatch<-F
 allmodels[allmodels$`2D`=="Traveling" & allmodels$`3D`=="Foraging","Mismatch"]<-TRUE
 
-ggplot(allmodels)+geom_path(aes(x=Longitude, y=Latitude,group=Animal),size=.25) + geom_point(aes(x=Longitude, y=Latitude,col=Mismatch))+ borders(fill="grey90") + coord_cartesian(ylim = range(mdat$Latitude),xlim=range(mdat$Longitude)) + theme_bw() + mytheme + scale_color_manual(values=c("Black","Red"))
+ggplot(allmodels)+geom_path(aes(x=Longitude, y=Latitude,group=paste(Animal,Track)),size=.25) + geom_point(aes(x=Longitude, y=Latitude,col=Mismatch))+ borders(fill="grey90") + coord_cartesian(ylim = range(mdat$Latitude),xlim=range(mdat$Longitude)) + theme_bw() + mytheme + scale_color_manual(values=c("Black","Red"))
 ```
 
 
@@ -530,7 +546,7 @@ Where does the 2d predict foraging that the 3d refines?
 allmodels$Mismatch<-F
 allmodels[allmodels$`2D`=="Foraging" & allmodels$`3D`=="Traveling","Mismatch"]<-TRUE
 
-ggplot(allmodels)+geom_path(aes(x=Longitude, y=Latitude,group=Animal),size=.25) + geom_point(aes(x=Longitude, y=Latitude,col=Mismatch))+ borders(fill="grey90") + coord_cartesian(ylim = range(mdat$Latitude),xlim=range(mdat$Longitude)) + theme_bw() + mytheme + scale_color_manual(values=c("Black","Red"))
+ggplot(allmodels)+geom_path(aes(x=Longitude, y=Latitude,group=paste(Animal,Track)),size=.25) + geom_point(aes(x=Longitude, y=Latitude,col=Mismatch))+ borders(fill="grey90") + coord_cartesian(ylim = range(mdat$Latitude),xlim=range(mdat$Longitude)) + theme_bw() + mytheme + scale_color_manual(values=c("Black","Red"))
 ```
 
 
@@ -598,10 +614,6 @@ restime<-function(mdat){
 }
 
 plot(restime(mdat))
-
-#split tracks by month data, just get foraging data
-#md<-split(mdat[mdat$bstate %in% "Area-restricted Search",],mdat[mdat$bstate %in% "Area-restricted Search","Month"],drop=T)
-#md<-split(mdat,mdat$Month,drop=T)
 
 r<-stack(lapply(mdat,restime))
 
