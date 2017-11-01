@@ -297,7 +297,7 @@ data=list(dive=maxdive,argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=trac
 pt<-c("alpha","beta","state","gamma")
 
 if(newModel){
-  system.time(diving<-jags.parallel(model.file = "Bayesian/Diving.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=100000,n.burnin=99500,n.thin=2,DIC=FALSE))
+  system.time(diving<-jags.parallel(model.file = "Bayesian/Diving.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=50000,n.burnin=49500,n.thin=2,DIC=FALSE))
   }
 
 ```
@@ -460,7 +460,7 @@ data=list(argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tracks,argos_clas
 pt<-c("alpha","gamma","state")
 
 if(newModel){
-  system.time(foraging<-jags.parallel(model.file = "Bayesian/Foraging.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=100000,n.burnin=99500,n.thin=2,DIC=FALSE))
+  system.time(foraging<-jags.parallel(model.file = "Bayesian/Foraging.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=50000,n.burnin=49500,n.thin=2,DIC=FALSE))
   }
 
 ```
