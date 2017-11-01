@@ -9,10 +9,6 @@ output:
     theme: united
 ---
 
-#Abstract
-
-Foraging behavior shapes animal health through the balance of the resources expended to obtain nutrients and the energetic rewards of captured resources. The health of individuals will influence reproductive success, fitness and ultimately population viability. Despite the key role of individual health in evolutionary ecology, it can be challenging to connect foraging behavior and energetics in free living marine organisms. Combining data on foraging strategies, feeding behavior and physiology, we estimate body mass for humpback whales as they forage near the Antarctic Peninsula. Humpback whales require extreme energetic storage to facilitate the yearly migration between austral foraging areas to equatorial breeding grounds. Based on tagged individuals, we model the foraging effort, duration and energetics of animals throughout the austral season. We then connect these measurements to studies of whale feeding physiology and biomechanics. While predictive modeling of individual behavior will be naturally complex, we utilize hierarchical Bayesian models to propagate uncertainty throughout the model. By testing a variety of model assumptions surrounding energetics and foraging rate, we can understand the sensitivity of our predictions to parameter bounds. Our model forms the basis for field tests of animal body condition and further exploration of individual behavior and animal health. Future work combining the environmental impacts of changing ocean conditions on foraging success will inform conservation strategies in a changing marine ecosystem.
-
 
 # Foraging Model
 
@@ -32,7 +28,7 @@ $$
   \alpha_{i,2,1} & 1-\alpha_{i,2,1} \\
 \end{matrix}
 $$
-$$logit(\phi_{traveling}) = \alpha_{Behavior_{t-1}}$$
+$$logit(\phi_{traveling}) = \alpha_{Behavior_{t-1}} * \beta \text{ dive depth}_{i,g,t} $$
 The behavior at time t of individual i on track g is a discrete draw.
 $$S_{i,g,t} \sim Cat(\phi_{traveling},\phi_{foraging})$$
 
@@ -70,8 +66,7 @@ if(!newModel){
   newModel=F
 }
 
-#get dive data
-
+#get gps data
 f<-list.files("/Users/Ben/Dropbox/Whales/Data/Humpback",pattern="Locations",full.names=T,recursive = T)
 
 #just grab five individuals for now
@@ -86,11 +81,25 @@ gdat<-bind_rows(gdat)
 #timestamp
 gdat$Date<-as.POSIXct(gdat$Date,format="%H:%M:%S %d-%b-%Y",tz="Etc/GMT+3")
 
-#get data files
+#get dive data files
 f<-list.files("/Users/Ben/Dropbox/Whales/Data/Humpback/",pattern="Behavior",full.names=T,recursive = T)
-
-#test data set  [0:2]
 dat<-bind_rows(lapply(f,read.csv))
+
+#TODO convert histos.csv to usable dive data?
+# f<-list.files("/Users/Ben/Dropbox/Whales/Data/Humpback/2017",pattern="Histos",full.names=T,recursive = T)
+# hdat<-bind_rows(lapply(f,read.csv))
+# hdat<-hdat %>% filter(HistType=="DiveDepth") %>% dplyr::select(Animal=Ptt,Date,Bin1,Bin2,Bin3,Bin4,Bin5,Bin6,Bin7,Bin8,Bin9)
+# 
+# #gather and replace with meters
+# colnames(hdat)[c(-1,-2)]<-c(10,20,50,100,150,200,300,400,500)
+# 
+# hdat<-gather(hdat,Animal,Date)
+# colnames(hdat)<-c("Animal","Date","Bin","value")
+# hdat$Bin<-as.numeric(hdat$Bin)
+
+#For each animal at each time, highest non-zero bin
+#hdat %>% group_by(Animal,Date) %>% filter(!value==0) %>% summarize(max(Bin))
+
 dat$GMTtime<-as.POSIXct(dat$End,format="%H:%M:%S %d-%b-%Y",tz="Etc/GMT+3")
   
 #local time
@@ -179,7 +188,7 @@ ggsave("Figures/Map.svg")
 ggsave("Figures/Map.png")
 
 ##Time is the beginning of the first point.
-step_length=4
+step_length=6
 
 sxy<-split(mdat,mdat$Animal)
 
@@ -231,8 +240,8 @@ mdat %>% group_by(Animal) %>% summarize(n=n())
 ```{r}
 ###################################################
 #filter by two whales for the moment
-#mdat<-mdat %>% filter(Animal %in% c("131127","131136"))
-#mdat<-mdat %>% filter(Animal %in% c("131127"))
+mdat<-mdat %>% filter(Animal %in% c("131127","131136"))
+#mdat<-mdat %>% filter(Animal %in% c("131115"))
 ####################################################
 
 #refactor animal
@@ -297,7 +306,7 @@ data=list(dive=maxdive,argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=trac
 pt<-c("alpha","beta","state","gamma")
 
 if(newModel){
-  system.time(diving<-jags.parallel(model.file = "Bayesian/Diving.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=50000,n.burnin=49500,n.thin=2,DIC=FALSE))
+  system.time(diving<-jags.parallel(model.file = "Bayesian/Diving.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=55000,n.burnin=54500,n.thin=2,DIC=FALSE))
   }
 
 ```
@@ -334,13 +343,16 @@ pc_dive<-bind_rows(splitpc)
 rm(splitpc)
 
 ggplot(pc_dive[!pc_dive$parameter %in% c("state"),],aes(x=Draw,y=value,col=as.factor(chain))) + geom_line() + facet_wrap(~par,scales="free") + theme_bw() + labs(col="Chain")
+
+ggplot(pc_dive[!pc_dive$parameter %in% c("state"),],aes(x=value,fill=as.factor(chain))) + geom_histogram() + facet_wrap(~par,scales="free") + theme_bw() + labs(col="Chain")
+
 ```
 
 Effect of dive depth on foraging state
 
 ```{r}
 beta<-pc_dive %>% filter(parameter=="beta")
-
+qplot(beta$value)
 divecov<-bind_rows(lapply(beta$value,function(x){
   pForaging<-1-inv.logit(x * mdat$DepthMax)
   divecov<-data.frame(DepthMax=mdat$DepthMax,p=pForaging)
@@ -359,7 +371,7 @@ alpha$Behavior<-as.character(alpha$Behavior)
 alpha$Behavior[alpha$Behavior=="1"]<-"Traveling->Traveling"
 alpha$Behavior[alpha$Behavior=="2"]<-"Foraging->Traveling"
 
-ggplot(alpha,aes(x=value)) + geom_histogram() + facet_wrap(~Behavior) + labs(x="Probability of Transition")
+ggplot(alpha,aes(x=inv.logit(value))) + geom_histogram() + facet_wrap(~Behavior) + labs(x="Probability of Transition")
 
 #label previous and prediction state, treat traveling as a success and foraging as a failure in a binomial trial
 alpha[alpha$Behavior=="Traveling->Traveling","Previous_State"]<-1
@@ -369,9 +381,7 @@ write.csv(alpha,"Data/Alpha.csv",row.names=F)
 
 ### Time foraging as a function of time
 
-* 12 time step
-
-```{r}
+```{r,eval=F}
 foraging_time<-function(alpha,draws,step){
   states<-c()
   
@@ -417,11 +427,17 @@ state_est[state_est$Behavior==1,"Behavior"]<-"Traveling"
 state_est[state_est$Behavior==2,"Behavior"]<-"Foraging"
 ```
 
-```{r,fig.height=20}
-ggplot(state_est,aes(x=timestamp,y=-DepthMax,col=Behavior)) + geom_point() + geom_line(size=0.25,aes(group=1)) + facet_wrap(~Animal,scales="free",ncol=2) + theme_bw()
+```{r,fig.height=15,fig.width=12}
+ggplot(state_est,aes(x=timestamp,y=-DepthMax,col=Behavior)) + geom_point() + geom_line(size=0.25,aes(group=1)) + facet_wrap(~Animal,scales="free",ncol=1) + theme_bw()
 ggsave("Figures/TemporalBehavior.svg")
 ggsave("Figures/TemporalBehavior.jpeg",height=8,width=12)
 
+#Look at time interval
+ggplot(state_est,aes(x=timestamp,y=-DepthMax,col=step)) + geom_point() + geom_line(size=0.25,aes(group=1)) + facet_wrap(~Animal,scales="free",ncol=1) + theme_bw()
+
+by_state<-state_est %>% group_by(Animal,Track,step) %>% summarize(timestamp=min(timestamp),dive=mean(DepthMax),Behavior=unique(Behavior))
+ggplot(by_state,aes(x=timestamp,y=-dive,col=Behavior)) + geom_point() + geom_line(size=0.25,aes(group=1)) + facet_wrap(~Animal,scales="free",ncol=1) + theme_bw()
+head(by_state)
 ```
 
 ## Diel
@@ -460,7 +476,7 @@ data=list(argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tracks,argos_clas
 pt<-c("alpha","gamma","state")
 
 if(newModel){
-  system.time(foraging<-jags.parallel(model.file = "Bayesian/Foraging.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=50000,n.burnin=49500,n.thin=2,DIC=FALSE))
+  system.time(foraging<-jags.parallel(model.file = "Bayesian/Foraging.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=55000,n.burnin=54500,n.thin=2,DIC=FALSE))
   }
 
 ```
@@ -526,7 +542,7 @@ allmodels<-bind_rows(state_est,state_est2d)
 ```
 
 ```{r}
-ggplot(data=allmodels)+geom_path(aes(x=Longitude, y=Latitude,group=paste(Animal,Track),size=.5)) + geom_point(aes(x=Longitude, y=Latitude,col=Behavior),size=0.5)+ borders(fill="grey90") + coord_cartesian(ylim = range(mdat$Latitude),xlim=range(mdat$Longitude)) + theme_bw() + mytheme  + facet_wrap(~Model)
+ggplot(data=allmodels)+geom_path(aes(x=Longitude, y=Latitude,group=paste(Animal,Track)),size=0.5) + geom_point(aes(x=Longitude, y=Latitude,col=Behavior),size=0.5)+ borders(fill="grey90") + coord_cartesian(ylim = range(mdat$Latitude),xlim=range(mdat$Longitude)) + theme_bw() + mytheme  + facet_wrap(~Model)
 ```
 
 Where does the 3d predict foraging that the 2d misses?
@@ -538,7 +554,6 @@ allmodels[allmodels$`2D`=="Traveling" & allmodels$`3D`=="Foraging","Mismatch"]<-
 
 ggplot(allmodels)+geom_path(aes(x=Longitude, y=Latitude,group=paste(Animal,Track)),size=.25) + geom_point(aes(x=Longitude, y=Latitude,col=Mismatch))+ borders(fill="grey90") + coord_cartesian(ylim = range(mdat$Latitude),xlim=range(mdat$Longitude)) + theme_bw() + mytheme + scale_color_manual(values=c("Black","Red"))
 ```
-
 
 Where does the 2d predict foraging that the 3d refines?
 

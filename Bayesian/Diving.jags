@@ -103,11 +103,11 @@
     gamma[2] <- gamma[1] * dev
     
     #Intercepts
-    alpha[1] ~ dbeta(1,1)
-    alpha[2] ~ dbeta(1,1)
+    alpha[1] ~ dnorm(0,0.386)
+    alpha[2] ~ dnorm(0,0.386)
     
     #Effect of dive depth on foraging state
-    beta ~ dnorm(0,0.0001)
+    beta ~ dnorm(0,0.386)
 
     #Probability of behavior switching 
     lambda[1] ~ dbeta(1,1)
