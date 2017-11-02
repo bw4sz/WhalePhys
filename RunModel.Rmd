@@ -243,7 +243,7 @@ mdat %>% group_by(Animal) %>% summarize(n=n())
 ```{r}
 ###################################################
 #filter by two whales for the moment
-mdat<-mdat %>% filter(Animal %in% c("131127","131136"))
+mdat<-mdat %>% filter(Animal %in% c("131127","131136","131132","131133","154187","131134"))
 #mdat<-mdat %>% filter(Animal %in% c("131127"))
 ####################################################
 
@@ -316,7 +316,7 @@ data=list(duration=diveduration,divecount=divecount,dive=maxdive,argos=obs,steps
 pt<-c("alpha","gamma","lambda_count","duration_mu","duration_tau","depth_mu","depth_tau","dive_new","state","E","Enew")
 
 if(newModel){
-  system.time(diving<-jags.parallel(model.file = "Bayesian/Diving.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=4000,n.burnin=3500,n.thin=2,DIC=FALSE))
+  system.time(diving<-jags.parallel(model.file = "Bayesian/Diving.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10000,n.burnin=9500,n.thin=2,DIC=FALSE))
   }
 
 ```
@@ -334,18 +334,12 @@ pc_dive$parameter<-data.frame(str_match(pc_dive$par,"(\\w+)"))[,-1]
 splitpc<-split(pc_dive,pc_dive$parameter)
 
 #single index
-#splitpc[c("alpha","depth_mu","depth_tau","duration_mu","duration_tau","lambda_count")]<-lapply(splitpc[c("alpha","depth_mu","depth_tau","duration_mu","duration_tau","lambda_count")],function(x){
-#    sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+)]"))[,3]
-#    pc<-data.frame(x,Behavior=sv)
-#    return(pc)
-#}) 
-
-#single index
-splitpc[c("alpha","depth_mu","depth_tau")]<-lapply(splitpc[c("alpha","depth_mu","depth_tau")],function(x){
+splitpc[c("alpha","depth_mu","depth_tau","duration_mu","duration_tau","lambda_count")]<-lapply(splitpc[c("alpha","depth_mu","depth_tau","duration_mu","duration_tau","lambda_count")],function(x){
     sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+)]"))[,3]
     pc<-data.frame(x,Behavior=sv)
     return(pc)
 }) 
+
 
 #3 index
 splitpc[c("state")]<-lapply(splitpc[c("state")],function(x){
@@ -427,15 +421,16 @@ travel_dives<-data.frame(MaxDepth=rtruncnorm(statecount[1,"n"], mean=depth_mu1$v
 forage_dives<-data.frame(MaxDepth=rtruncnorm(statecount[2,"n"], mean=depth_mu2$value,sd=sqrt(1/depth_tau2$value),a=0),Behavior="Foraging")
 pred_dives<-bind_rows(travel_dives,forage_dives)
 
-ggplot(pred_dives)  + geom_histogram(data=mdat,aes(x=DepthMax),col="black")+ geom_histogram(alpha=0.8,aes(x=MaxDepth,fill=Behavior))  + theme_bw() 
+ggplot(pred_dives)  + geom_histogram(data=mdat,aes(x=DepthMax*1000),col="black")+ geom_histogram(alpha=0.8,aes(x=MaxDepth*1000,fill=Behavior))  + theme_bw() + labs(x="Dive Depth (m)")
+ggsave("Figures/DiveHist.jpg",height=4,width=7)
 
-ggplot(pc_dive[pc_dive$parameter=="dive_new",])+  geom_density(aes(x=value),col="red") + geom_density(data=mdat,aes(x=DepthMax),col="black",size=1.5) + theme_bw() 
-
+ggplot(pc_dive[pc_dive$parameter=="dive_new",])+  geom_density(aes(x=value*1000),col='red') + geom_density(data=mdat,aes(x=DepthMax*1000),col="black",size=1.5) + theme_bw() + labs(x="Dive Depth (m)")
+ggsave("Figures/DivePredict.jpg",height=4,width=7)
 ```
 
 ## Simulate dive durations
 
-```{r,eval=F}
+```{r,eval=T}
 duration_mu1<-pc_dive %>% filter(parameter %in% c("duration_mu"),Behavior==1)
 duration_mu2<-pc_dive %>% filter(parameter %in% c("duration_mu"),Behavior==2)
 duration_tau1<-pc_dive %>% filter(parameter %in% c("duration_tau"),Behavior==1)
@@ -450,12 +445,10 @@ forage_dives<-data.frame(DurationMax=rtruncnorm(statecount[2,"n"], mean=duration
 pred_dives<-bind_rows(travel_dives,forage_dives)
 
 ggplot(pred_dives)  + geom_histogram(data=mdat,aes(x=DurationMax),col="black")+ geom_histogram(alpha=0.8,aes(x=DurationMax,fill=Behavior))  + theme_bw() 
-
-ggplot(pc_dive[pc_dive$parameter=="dive_new",])+  geom_density(aes(x=value),col="red") + geom_density(data=mdat,aes(x=DurationMax),col="black",size=1.5) + theme_bw() 
+ggsave("Figures/DurationHist.jpg",height=5,width=7)
 ```
 
 ##Distribution of average dive counts per step
-
 
 ```{r.eval=F}
 ## Simulate dive counts
@@ -547,7 +540,7 @@ data=list(argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tracks,argos_clas
 pt<-c("alpha","gamma","state")
 
 if(newModel){
-  system.time(foraging<-jags.parallel(model.file = "Bayesian/Foraging.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=1000,n.burnin=500,n.thin=2,DIC=FALSE))
+  system.time(foraging<-jags.parallel(model.file = "Bayesian/Foraging.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=4000,n.burnin=3500,n.thin=2,DIC=FALSE))
   }
 
 ```
@@ -614,6 +607,7 @@ allmodels<-bind_rows(state_est,state_est2d)
 
 ```{r}
 ggplot(data=allmodels)+geom_path(aes(x=Longitude, y=Latitude,group=paste(Animal,Track)),size=0.5) + geom_point(aes(x=Longitude, y=Latitude,col=Behavior),size=0.5)+ borders(fill="grey90") + coord_cartesian(ylim = range(mdat$Latitude),xlim=range(mdat$Longitude)) + theme_bw() + mytheme  + facet_wrap(~Model)
+ggsave("Figures/SpatialPred.jpg",height=4,width=7)
 ```
 
 Where does the 3d predict foraging that the 2d misses?
@@ -624,6 +618,7 @@ allmodels$Mismatch<-F
 allmodels[allmodels$`2D`=="Traveling" & allmodels$`3D`=="Foraging","Mismatch"]<-TRUE
 
 ggplot(allmodels)+geom_path(aes(x=Longitude, y=Latitude,group=paste(Animal,Track)),size=.25) + geom_point(aes(x=Longitude, y=Latitude,col=Mismatch))+ borders(fill="grey90") + coord_cartesian(ylim = range(mdat$Latitude),xlim=range(mdat$Longitude)) + theme_bw() + mytheme + scale_color_manual(values=c("Black","Red"))
+ggsave("Figures/Mismatch1.jpg",height=4,width=7)
 ```
 
 Where does the 2d predict foraging that the 3d refines?
@@ -633,9 +628,10 @@ allmodels$Mismatch<-F
 allmodels[allmodels$`2D`=="Foraging" & allmodels$`3D`=="Traveling","Mismatch"]<-TRUE
 
 ggplot(allmodels)+geom_path(aes(x=Longitude, y=Latitude,group=paste(Animal,Track)),size=.25) + geom_point(aes(x=Longitude, y=Latitude,col=Mismatch))+ borders(fill="grey90") + coord_cartesian(ylim = range(mdat$Latitude),xlim=range(mdat$Longitude)) + theme_bw() + mytheme + scale_color_manual(values=c("Black","Red"))
+ggsave("Figures/Mismatch2.jpg",height=4,width=7)
 ```
 
-```{r,eval=T}
+```{r,eval=F}
 #time in each cell function
   timecell<-function(j){
     
@@ -712,6 +708,23 @@ ggplot() + geom_tile(data=f,aes(x=Longitude,y=Latitude,fill=value))  + scale_fil
 ggsave("Figures/ResidencyMap.jpg",height=9,width=6,dpi=300)
 ```
 
+## Posterior Checks
+
+The goodness of fit is a measured as chi-squared. The expected value is compared to the observed value of the actual data. In addition, a replicate dataset is generated from the posterior predicted intensity. Better fitting models will have lower discrepancy values and be 
+Better fitting models are smaller values and closer to the 1:1 line. A perfect model would be 0 discrepancy. This is unrealsitic given the stochasticity in the sampling processes. Rather, its better to focus on relative discrepancy. In addition, a model with 0 discrepancy would likely be seriously overfit and have little to no predictive power.
+
+```{r,fig.height=4,fig.width=8,message=F,warning=F}
+
+fitstat<-pc_dive %>% filter(parameter %in% c("E","Enew")) %>% group_by(parameter,Draw,chain) %>% summarize(fit=mean(value))
+
+fitstat<-dcast(fitstat,Draw+chain~parameter,value.var="fit")
+
+ymin<-min(c(fitstat$E,fitstat$Enew)) - min(c(fitstat$E,fitstat$Enew)) * .2
+ymax<-max(c(fitstat$E,fitstat$Enew)) + max(c(fitstat$E,fitstat$Enew)) * .2
+ggplot(fitstat,aes(x=E,y=Enew)) + geom_point() + theme_bw() + labs(x="Discrepancy of observed data",y="Discrepancy of replicated data") + geom_abline() + coord_fixed() + ylim(ymin=ymin,ymax=ymax) + xlim(xmin=ymin,xmax=ymax)
+ggsave("Figures/PosteriorCheck.jpg",height = 4,width = 4)
+fitstat %>% group_by() %>% summarize(mean(E),var(Enew))
+```
 
 ```{r}
 save.image("/Users/Ben/Dropbox/Whales/Dive/WhalePhys.RData")

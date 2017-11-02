@@ -77,10 +77,10 @@ cat("
     
     #for each dive depth
     #dive depth at time t
-    dive[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])
+    dive[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])T(0.01,)
     
     #dive speed (max depth/duration)
-    #duration[i,g,t,u] ~ dnorm(duration_mu[state[i,g,t]],duration_tau[state[i,g,t]])
+    duration[i,g,t,u] ~ dnorm(duration_mu[state[i,g,t]],duration_tau[state[i,g,t]])T(0.01,)
     
     #Assess Model Fit
     
@@ -132,7 +132,7 @@ cat("
     
     #Dive Priors
     #average max depth
-    depth_mu[1] ~ dnorm(0.05,0.0001)
+    depth_mu[1] ~ dnorm(0.01,0.0001)
     
     #we know that foraging dives are probably 0.1km deeper,
     #but are not more than 0.5 km deeper
@@ -140,9 +140,9 @@ cat("
     depth_mu[2] <- depth_mu[1] + forage
     
     #speed = depth/duration priors
-    #duration_mu[1] ~ dunif(0,3600)
-    #time_forage~dunif(0,60)
-    #duration_mu[2] = duration_mu[1] + time_forage 
+    duration_mu[1] ~ dnorm(5,0.01)
+    time_forage~dunif(0,60)
+    duration_mu[2] = duration_mu[1] + time_forage 
     
     #Dive counts, there can't be more than about 20 dives in a 6 hour period.
     lambda_count[1] ~ dunif(0,20)
@@ -151,10 +151,10 @@ cat("
     #depth and duration variance
     depth_tau[1] ~ dunif(0,500)
     depth_tau[2] ~ dunif(0,500)
-    duration_tau[1] ~ dunif(0,100)
-    duration_tau[2] ~ dunif(0,100)
+    duration_tau[1] ~ dunif(0,500)
+    duration_tau[2] ~ dunif(0,500)
     
-##Argos priors##
+    ##Argos priors##
     #longitudinal argos precision, from Jonsen 2005, 2016, represented as precision not sd
     
     #by argos class
