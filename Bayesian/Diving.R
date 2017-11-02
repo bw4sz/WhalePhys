@@ -35,7 +35,7 @@ cat("
     for(t in 2:(steps[i,g]-1)){
     
     #Behavioral State at time T
-    logit(phi[i,g,t,1]) <- alpha[state[i,g,t-1]]  + beta * dive[i,g,t]
+    phi[i,g,t,1] <- alpha[state[i,g,t-1]] 
     phi[i,g,t,2] <- 1-phi[i,g,t,1]
     state[i,g,t] ~ dcat(phi[i,g,t,])
     
@@ -51,11 +51,14 @@ cat("
     
     #Gaussian Displacement in location
     y[i,g,t+1,1:2] ~ dmnorm(d[i,g,t,1:2],iSigma)
-
+    
+    #number of dives per step length    
+    #divecount[i,g,t] ~ dpois(lambda_count[state[i,g,t]])
+    
     }
     
     #Final behavior state
-    logit(phi[i,g,steps[i,g],1]) <- alpha[state[i,g,steps[i,g]-1]] - beta * dive[i,g,steps[i,g]]
+    phi[i,g,steps[i,g],1] <- alpha[state[i,g,steps[i,g]-1]] 
     phi[i,g,steps[i,g],2] <- 1-phi[i,g,steps[i,g],1]
     state[i,g,steps[i,g]] ~ dcat(phi[i,g,steps[i,g],])
     
@@ -71,12 +74,28 @@ cat("
     #for each lat and long
     #argos error
     argos[i,g,t,u,1:2] ~ dmnorm(zhat[i,g,t,u,1:2],argos_prec[argos_class[i,g,t,u],1:2,1:2])
-
+    
+    #for each dive depth
+    #dive depth at time t
+    dive[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])
+    
+    #dive speed (max depth/duration)
+    #duration[i,g,t,u] ~ dnorm(duration_mu[state[i,g,t]],duration_tau[state[i,g,t]])
+    
+    #Assess Model Fit
+    
+    #Fit dive discrepancy statistics
+    eval[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])
+    E[i,g,t,u]<-pow((dive[i,g,t,u]-eval[i,g,t,u]),2)/(eval[i,g,t,u])
+    
+    dive_new[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])T(0.01,)
+    Enew[i,g,t,u]<-pow((dive_new[i,g,t,u]-eval[i,g,t,u]),2)/(eval[i,g,t,u])
+    
     }
     }
     }
     }
-
+    
     ###Priors###
     
     #Process Variance
@@ -104,17 +123,38 @@ cat("
     gamma[2] <- gamma[1] * dev
     
     #Intercepts
-    alpha[1] ~ dnorm(0,0.386)
-    alpha[2] ~ dnorm(0,0.386)
+    alpha[1] ~ dbeta(1,1)
+    alpha[2] ~ dbeta(1,1)
     
-    #Effect of dive depth on foraging state
-    beta ~ dnorm(0,0.386)
-
     #Probability of behavior switching 
     lambda[1] ~ dbeta(1,1)
     lambda[2] <- 1 - lambda[1]
-
-    ##Argos priors##
+    
+    #Dive Priors
+    #average max depth
+    depth_mu[1] ~ dnorm(0.05,0.0001)
+    
+    #we know that foraging dives are probably 0.1km deeper,
+    #but are not more than 0.5 km deeper
+    forage ~ dunif(0.05,0.5)
+    depth_mu[2] <- depth_mu[1] + forage
+    
+    #speed = depth/duration priors
+    #duration_mu[1] ~ dunif(0,3600)
+    #time_forage~dunif(0,60)
+    #duration_mu[2] = duration_mu[1] + time_forage 
+    
+    #Dive counts, there can't be more than about 20 dives in a 6 hour period.
+    lambda_count[1] ~ dunif(0,20)
+    lambda_count[2] ~ dunif(0,20)
+    
+    #depth and duration variance
+    depth_tau[1] ~ dunif(0,500)
+    depth_tau[2] ~ dunif(0,500)
+    duration_tau[1] ~ dunif(0,100)
+    duration_tau[2] ~ dunif(0,100)
+    
+##Argos priors##
     #longitudinal argos precision, from Jonsen 2005, 2016, represented as precision not sd
     
     #by argos class
