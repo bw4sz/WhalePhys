@@ -243,7 +243,7 @@ mdat %>% group_by(Animal) %>% summarize(n=n())
 ```{r}
 ###################################################
 #filter by two whales for the moment
-mdat<-mdat %>% filter(Animal %in% c("131127","131136","131132","131133","154187","131134"))
+mdat<-mdat %>% filter(Animal %in% c("131127","131136","131132","131133","154187","131134","131116"))
 #mdat<-mdat %>% filter(Animal %in% c("131127"))
 ####################################################
 
@@ -316,7 +316,7 @@ data=list(duration=diveduration,divecount=divecount,dive=maxdive,argos=obs,steps
 pt<-c("alpha","gamma","lambda_count","duration_mu","duration_tau","depth_mu","depth_tau","dive_new","state","E","Enew")
 
 if(newModel){
-  system.time(diving<-jags.parallel(model.file = "Bayesian/Diving.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10000,n.burnin=9500,n.thin=2,DIC=FALSE))
+  system.time(diving<-jags.parallel(model.file = "Bayesian/Diving.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=15000,n.burnin=14500,n.thin=2,DIC=FALSE))
   }
 
 ```
@@ -540,7 +540,7 @@ data=list(argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tracks,argos_clas
 pt<-c("alpha","gamma","state")
 
 if(newModel){
-  system.time(foraging<-jags.parallel(model.file = "Bayesian/Foraging.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=4000,n.burnin=3500,n.thin=2,DIC=FALSE))
+  system.time(foraging<-jags.parallel(model.file = "Bayesian/Foraging.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=15000,n.burnin=14500,n.thin=2,DIC=FALSE))
   }
 
 ```
