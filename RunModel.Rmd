@@ -316,7 +316,7 @@ data=list(duration=diveduration,divecount=divecount,dive=maxdive,argos=obs,steps
 pt<-c("alpha","gamma","lambda_count","duration_mu","duration_tau","depth_mu","depth_tau","dive_new","state","E","Enew")
 
 if(newModel){
-  system.time(diving<-jags.parallel(model.file = "Bayesian/Diving.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=35000,n.burnin=34500,n.thin=2,DIC=FALSE))
+  system.time(diving<-jags.parallel(model.file = "Bayesian/Diving.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=55000,n.burnin=54500,n.thin=2,DIC=FALSE))
   }
 
 ```
@@ -450,7 +450,7 @@ ggsave("Figures/DurationHist.jpg",height=5,width=7)
 
 ##Distribution of average dive counts per step
 
-```{r.eval=F}
+```{r.eval=T}
 ## Simulate dive counts
 count_lambda1<-pc_dive %>% filter(parameter %in% c("lambda_count"),Behavior==1)
 count_lambda2<-pc_dive %>% filter(parameter %in% c("lambda_count"),Behavior==2)
@@ -494,11 +494,10 @@ ggsave("Figures/TemporalBehavior.svg")
 ggsave("Figures/TemporalBehavior.jpeg",height=8,width=12)
 
 #Look at time interval
-ggplot(state_est,aes(x=timestamp,y=-DepthMax,col=step)) + geom_point() + geom_line(size=0.25,aes(group=1)) + facet_wrap(~Animal,scales="free",ncol=1) + theme_bw()
+#ggplot(state_est,aes(x=timestamp,y=-DepthMax,col=step)) + geom_point() + geom_line(size=0.25,aes(group=1)) + facet_wrap(~Animal,scales="free",ncol=1) + theme_bw()
 
 by_state<-state_est %>% group_by(Animal,Track,step) %>% summarize(timestamp=min(timestamp),dive=mean(DepthMax),Behavior=unique(Behavior))
 ggplot(by_state,aes(x=timestamp,y=-dive,col=Behavior)) + geom_point() + geom_line(size=0.25,aes(group=1)) + facet_wrap(~Animal,scales="free",ncol=1) + theme_bw()
-head(by_state)
 ```
 
 ## Diel
@@ -540,7 +539,7 @@ data=list(argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tracks,argos_clas
 pt<-c("alpha","gamma","state")
 
 if(newModel){
-  system.time(foraging<-jags.parallel(model.file = "Bayesian/Foraging.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=35000,n.burnin=34500,n.thin=2,DIC=FALSE))
+  system.time(foraging<-jags.parallel(model.file = "Bayesian/Foraging.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=55000,n.burnin=54500,n.thin=2,DIC=FALSE))
   }
 
 ```
@@ -719,8 +718,8 @@ fitstat<-pc_dive %>% filter(parameter %in% c("E","Enew")) %>% group_by(parameter
 
 fitstat<-dcast(fitstat,Draw+chain~parameter,value.var="fit")
 
-ymin<-min(c(fitstat$E,fitstat$Enew)) - min(c(fitstat$E,fitstat$Enew)) * .2
-ymax<-max(c(fitstat$E,fitstat$Enew)) + max(c(fitstat$E,fitstat$Enew)) * .2
+ymin<-min(c(fitstat$E,fitstat$Enew)) - min(c(fitstat$E,fitstat$Enew)) * .1
+ymax<-max(c(fitstat$E,fitstat$Enew)) + max(c(fitstat$E,fitstat$Enew)) * .1
 ggplot(fitstat,aes(x=E,y=Enew)) + geom_point() + theme_bw() + labs(x="Discrepancy of observed data",y="Discrepancy of replicated data") + geom_abline() + coord_fixed() + ylim(ymin=ymin,ymax=ymax) + xlim(xmin=ymin,xmax=ymax)
 ggsave("Figures/PosteriorCheck.jpg",height = 4,width = 4)
 fitstat %>% group_by() %>% summarize(mean(E),var(Enew))

@@ -53,7 +53,7 @@ cat("
     y[i,g,t+1,1:2] ~ dmnorm(d[i,g,t,1:2],iSigma)
     
     #number of dives per step length    
-    #divecount[i,g,t] ~ dpois(lambda_count[state[i,g,t]])
+    divecount[i,g,t] ~ dpois(lambda_count[state[i,g,t]])
     
     }
     
