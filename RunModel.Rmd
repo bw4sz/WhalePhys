@@ -66,7 +66,6 @@ if(!newModel){
   newModel=F
 }
 
-#get gps data
 f<-list.files("/Users/Ben/Dropbox/Whales/Data/Humpback",pattern="Locations",full.names=T,recursive = T)
 
 #just grab five individuals for now
@@ -82,34 +81,14 @@ gdat<-bind_rows(gdat)
 gdat$Date<-as.POSIXct(gdat$Date,format="%H:%M:%S %d-%b-%Y",tz="Etc/GMT+3")
 
 #get dive data files
+##2016 data##
 f<-list.files("/Users/Ben/Dropbox/Whales/Data/Humpback/",pattern="Behavior",full.names=T,recursive = T)
 dat<-bind_rows(lapply(f,read.csv))
 
-#TODO convert histos.csv to usable dive data?
-# f<-list.files("/Users/Ben/Dropbox/Whales/Data/Humpback/2017",pattern="Histos",full.names=T,recursive = T)
-# hdat<-bind_rows(lapply(f,read.csv))
-# hdat<-hdat %>% filter(HistType=="DiveDepth") %>% dplyr::select(Animal=Ptt,Date,Bin1,Bin2,Bin3,Bin4,Bin5,Bin6,Bin7,Bin8,Bin9)
-# 
-# #gather and replace with meters
-# colnames(hdat)[c(-1,-2)]<-c(10,20,50,100,150,200,300,400,500)
-# 
-# hdat<-gather(hdat,Animal,Date)
-# colnames(hdat)<-c("Animal","Date","Bin","value")
-# hdat$Bin<-as.numeric(hdat$Bin)
-
-#For each animal at each time, highest non-zero bin
-#hdat %>% group_by(Animal,Date) %>% filter(!value==0) %>% summarize(max(Bin))
-
-dat$GMTtime<-as.POSIXct(dat$End,format="%H:%M:%S %d-%b-%Y",tz="Etc/GMT+3")
-  
+dat$GMTtime<-as.POSIXct(dat$End,format="%H:%M:%S %d-%b-%Y",tz="GMT")
 #local time
 dat$timestamp<-as.POSIXct(format(dat$GMTtime,tz="Etc/GMT+3"))
 
-dat$Month<-months(dat$timestamp)
-dat$Month<-factor(dat$Month,levels=month.name)
-dat$Hour<-strftime(dat$timestamp,format="%H")
-dat$Year<-years(dat$timestamp)
-  
 #create unique messages
 indices<-which(dat$What=="Message")
 counter=1
@@ -119,19 +98,33 @@ dat[indices[x]:indices[x+1],"ID"]<-counter
 counter=counter+1
 }
 
-dive<-dat %>% filter(What=="Dive")%>% dplyr::select(Animal=Ptt,timestamp,Hour,Month,Year, ID,Start,DepthMax,DepthMin,DurationMax,DurationMin)
-dive<-dive[!is.na(dive$Month),]
+dive<-dat %>% filter(What=="Dive")%>% dplyr::select(Animal=Ptt,timestamp, ID,Start,DepthMax,DepthMin,DurationMax,DurationMin,GMTtime)
     
 #remove duplicate data
 dive<-dive %>% arrange(Animal,timestamp) 
 dive<-dive[!duplicated(dive),]
+
+dive$Month<-months(dive$timestamp)
+dive$Month<-factor(dive$Month,levels=month.name)
+dive$Hour<-strftime(dive$timestamp,format="%H")
+dive$Year<-years(dive$timestamp)
+
+dive<-dive[!is.na(dive$Month),]
+
+dive %>% group_by(Animal,Year) %>% summarize(n=n())
 ```
 
 Dive profiles per indidivuals
 
 ```{r}
-ggplot(dive,aes(x=timestamp,y=-DepthMax)) + geom_point(size=0.1) + geom_line(size=0.1) + facet_wrap(~Animal,scales="free") + theme_bw()
+ggplot(dive[dive$Year=="2016",],aes(x=timestamp,y=-DepthMax)) + geom_point(size=0.1) + geom_line(size=0.1) + facet_wrap(~Animal,scales="free") + theme_bw()
 ggsave("Figures/perindividual.jpeg",height=6,width=12)
+```
+
+Dive Histograms
+
+```{r}
+ggplot(dive[dive$Year=="2017",]) + geom_tile(aes(Depth,y=Animal,fill=Percentage)) 
 ```
 
 
@@ -243,7 +236,7 @@ mdat %>% group_by(Animal) %>% summarize(n=n())
 ```{r}
 ###################################################
 #filter by two whales for the moment
-mdat<-mdat %>% filter(Animal %in% c("131127","131136","131132","131133","154187","131134","131115","131111","131130"))
+mdat<-mdat %>% filter(Animal %in% c("131127","131136","131132","131133","154187","131134","131115","131111","131130","131136"))
 #mdat<-mdat %>% filter(Animal %in% c("131127"))
 ####################################################
 
