@@ -52,8 +52,6 @@ cat("
     #Gaussian Displacement in location
     y[i,g,t+1,1:2] ~ dmnorm(d[i,g,t,1:2],iSigma)
     
-    #number of dives per step length    
-    divecount[i,g,t] ~ dpois(lambda_count[state[i,g,t]])
     
     }
     
@@ -119,7 +117,7 @@ cat("
     ##Behavioral States
     
     gamma[1] ~ dbeta(3,2)		## gamma for state 1
-    dev ~ dbeta(1,1)			## a random deviate to ensure that gamma[1] > gamma[2]
+    dev ~ dunif(0.1,1)			## a random deviate to ensure that gamma[1] > gamma[2]
     gamma[2] <- gamma[1] * dev
     
     #Intercepts
@@ -143,10 +141,6 @@ cat("
     duration_mu[1] ~ dnorm(5,0.01)
     time_forage~dunif(0,60)
     duration_mu[2] = duration_mu[1] + time_forage 
-    
-    #Dive counts, there can't be more than about 20 dives in a 6 hour period.
-    lambda_count[1] ~ dunif(0,20)
-    lambda_count[2] ~ dunif(0,20)
     
     #depth and duration variance
     depth_tau[1] ~ dunif(0,500)
