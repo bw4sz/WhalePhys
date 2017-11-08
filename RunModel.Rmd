@@ -231,7 +231,7 @@ mdat %>% group_by(Animal) %>% summarize(n=n())
 ```{r}
 ###################################################
 #filter by two whales for the moment
-#mdat<-mdat %>% filter(Animal %in% c("131127","131136","131132","131133","154187","131134","131115","131111","131130","131136"))
+mdat<-mdat %>% filter(Animal %in% c("131127","131136","131132","131133","154187","131134","131115","131111","131130","131136"))
 #mdat<-mdat %>% filter(Animal %in% c("131127"))
 ####################################################
 
@@ -432,8 +432,6 @@ pred_dives<-bind_rows(travel_dives,forage_dives)
 
 ggplot(pred_dives)  + geom_histogram(data=mdat,aes(x=DurationMax),col="black")+ geom_histogram(alpha=0.8,aes(x=DurationMax,fill=Behavior))  + theme_bw() 
 ggsave("Figures/DurationHist.jpg",height=5,width=7)
-
-ggplot(pred_dives)  + geom_density(data=mdat,aes(x=DurationMax),col="black")+ geom_histogram(alpha=0.8,aes(x=DurationMax,fill=Behavior))  + theme_bw() 
 
 ggplot(pred_dives)+  geom_density(aes(x=DurationMax),col='red') + geom_density(data=mdat,aes(x=DurationMax),col="black",size=1.5) + theme_bw() + labs(x="Dive Depth (m)")
 ggsave("Figures/DurationPred.jpg",height=5,width=7)
