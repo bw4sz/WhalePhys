@@ -43,6 +43,7 @@ library(ggplot2)
 library(maptools)
 library(raster)
 library(data.table)
+library(ggmap)
 
 library(dplyr)
 library(stringr)
@@ -50,6 +51,7 @@ library(chron)
 library(R2jags)
 library(boot)
 library(knitr)
+library(MCMCpack)
 library(truncnorm)
 
 newModel=T
@@ -67,8 +69,6 @@ if(!newModel){
 
 #get gps data
 f<-list.files("/Users/Ben/Dropbox/Whales/Data/Humpback",pattern="Locations",full.names=T,recursive = T)
-
-#just grab five individuals for now
 gdat<-lapply(f,function(x) read.csv(x,stringsAsFactors=F))
 gdat<-lapply(gdat,function(x){
   x$Quality<-as.character(x$Quality)
@@ -105,7 +105,7 @@ counter=counter+1
 
 dive<-dat %>% filter(What=="Dive")%>% dplyr::select(Animal=Ptt,timestamp,Hour,Month,Year, ID,Start,DepthMax,DepthMin,DurationMax,DurationMin)
 dive<-dive[!is.na(dive$Month),]
-    
+
 #remove duplicate data
 dive<-dive %>% arrange(Animal,timestamp) 
 dive<-dive[!duplicated(dive),]
@@ -166,7 +166,7 @@ nrow(mdat)
 
 ```{r}
 #set max depth to km
-mdat$DepthMax<-mdat$DepthMax/1000
+#mdat$DepthMax<-mdat$DepthMax/1000
 
 #set duration to minutes
 mdat$DurationMax<-mdat$DurationMax/60
@@ -231,7 +231,7 @@ mdat %>% group_by(Animal) %>% summarize(n=n())
 ```{r}
 ###################################################
 #filter by two whales for the moment
-mdat<-mdat %>% filter(Animal %in% c("131127","131136","131132","131133","154187","131134","131115","131111","131130","131136"))
+mdat<-mdat %>% filter(Animal %in% c("131127","131136","131132","131133","154187","131134","131115","131111","131130","131116"))
 #mdat<-mdat %>% filter(Animal %in% c("131127"))
 ####################################################
 
@@ -285,22 +285,22 @@ maxdive[!is.finite(maxdive)]<-NA
 diveduration<-reshape2::acast(mdat,Animal~Track~step~jStep,value.var="DurationMax")
 ```
 
-```{r,child="Bayesian/Diving.R",eval=T}
+```{r,child="Bayesian/ThreeState.R",eval=T}
 ```
 
 ```{r,eval=T}
 #source jags file
-source("Bayesian/Diving.R")
+source("Bayesian/ThreeState.R")
 
 #prior cov shape
 R <- diag(c(1,1))
 data=list(duration=diveduration,dive=maxdive,argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tracks,argos_class=obs_class)
 
 #paramters to track
-pt<-c("alpha","gamma","duration_mu","duration_tau","depth_mu","depth_tau","dive_new","state","E","Enew")
+pt<-c("Traveling","Foraging","gamma","duration_mu","duration_tau","depth_mu","depth_tau","dive_new","state","E","Enew")
 
 if(newModel){
-  system.time(diving<-jags.parallel(model.file = "Bayesian/Diving.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=55000,n.burnin=54500,n.thin=2,DIC=FALSE))
+  system.time(diving<-jags.parallel(model.file = "Bayesian/ThreeState.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=5000,n.burnin=4800,n.thin=2,DIC=FALSE))
   }
 
 ```
@@ -318,7 +318,7 @@ pc_dive$parameter<-data.frame(str_match(pc_dive$par,"(\\w+)"))[,-1]
 splitpc<-split(pc_dive,pc_dive$parameter)
 
 #single index
-splitpc[c("alpha","depth_mu","depth_tau","duration_mu","duration_tau")]<-lapply(splitpc[c("alpha","depth_mu","depth_tau","duration_mu","duration_tau")],function(x){
+splitpc[c("Traveling","Foraging","depth_mu","depth_tau","duration_mu","duration_tau")]<-lapply(splitpc[c("Traveling","Foraging","depth_mu","depth_tau","duration_mu","duration_tau")],function(x){
     sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+)]"))[,3]
     pc<-data.frame(x,Behavior=sv)
     return(pc)
@@ -351,18 +351,23 @@ ggplot(pc_dive[!pc_dive$parameter %in% c("dive_new","state","E","Enew","eval"),]
 
 ## Temporal autocorrelation in foraging 
 
+Reconstructing the transition matrix
+
 ```{r,eval=F}
-alpha<-pc_dive %>% filter(parameter=="alpha")
-alpha$Behavior<-as.character(alpha$Behavior)
-alpha$Behavior[alpha$Behavior=="1"]<-"Traveling->Traveling"
-alpha$Behavior[alpha$Behavior=="2"]<-"Foraging->Traveling"
+amatrix<-pc_dive %>% filter(parameter %in% c("Traveling","Foraging"))
+amatrix<-amatrix %>%  dplyr::select(Draw,chain,parameter,Behavior,value) %>% spread(parameter,value) %>% mutate(Resting=1-(Traveling + Foraging))
 
-ggplot(alpha,aes(x=inv.logit(value))) + geom_histogram() + facet_wrap(~Behavior) + labs(x="Probability of Transition")
+tmatrix<-gather(amatrix,To,value,-Draw,-chain,-Behavior)
 
-#label previous and prediction state, treat traveling as a success and foraging as a failure in a binomial trial
-alpha[alpha$Behavior=="Traveling->Traveling","Previous_State"]<-1
-alpha[alpha$Behavior=="Foraging->Traveling","Previous_State"]<-0
-write.csv(alpha,"Data/Alpha.csv",row.names=F)
+btable<-data.frame(Behavior=c(1,2,3),BState=c("Traveling","Foraging","Resting"))
+
+tmatrix<-merge(tmatrix,btable)
+head(tmatrix)
+ggplot(tmatrix,aes(x=value)) + facet_grid(To~BState) + geom_histogram() 
+ggplot(tmatrix,aes(x=value)) + facet_wrap(~To) + geom_density(aes(fill=BState)) 
+
+#mean matrix?
+#ggplot(tmatrix,aes(x=BState,y=To,fill=value)) + geom_tile() 
 ```
 
 ### Time foraging as a function of time
@@ -407,10 +412,10 @@ travel_dives<-data.frame(MaxDepth=rtruncnorm(statecount[1,"n"], mean=depth_mu1$v
 forage_dives<-data.frame(MaxDepth=rtruncnorm(statecount[2,"n"], mean=depth_mu2$value,sd=sqrt(1/depth_tau2$value),a=0),Behavior="Foraging")
 pred_dives<-bind_rows(travel_dives,forage_dives)
 
-ggplot(pred_dives)  + geom_histogram(data=mdat,aes(x=DepthMax*1000),col="black")+ geom_histogram(alpha=0.8,aes(x=MaxDepth*1000,fill=Behavior))  + theme_bw() + labs(x="Dive Depth (m)")
+ggplot(pred_dives)  + geom_histogram(data=mdat,aes(x=DepthMax),col="black")+ geom_histogram(alpha=0.8,aes(x=MaxDepth,fill=Behavior))  + theme_bw() + labs(x="Dive Depth (m)")
 ggsave("Figures/DiveHist.jpg",height=4,width=7)
 
-ggplot(pc_dive[pc_dive$parameter=="dive_new",])+  geom_density(aes(x=value*1000),col='red') + geom_density(data=mdat,aes(x=DepthMax*1000),col="black",size=1.5) + theme_bw() + labs(x="Dive Depth (m)")
+ggplot(pc_dive[pc_dive$parameter=="dive_new",])+  geom_density(aes(x=value),col='red') + geom_density(data=mdat,aes(x=DepthMax),col="black",size=1.5) + theme_bw() + labs(x="Dive Depth (m)")
 ggsave("Figures/DivePredict.jpg",height=4,width=7)
 ```
 
@@ -457,6 +462,8 @@ state_est<-pc_dive %>% group_by(Animal,Track,step) %>% filter(parameter=="state"
 
 state_est[state_est$Behavior==1,"Behavior"]<-"Traveling"
 state_est[state_est$Behavior==2,"Behavior"]<-"Foraging"
+state_est[state_est$Behavior==3,"Behavior"]<-"Resting"
+
 ```
 
 ```{r,fig.height=15,fig.width=12}
@@ -492,6 +499,20 @@ ggsave("Figures/Month.png",height=5,width=8,unit="in")
 
 ```{r}
 ggplot(data=state_est)+geom_path(aes(x=Longitude, y=Latitude,group=paste(Animal,Track)),size=0.5) + geom_point(aes(x=Longitude, y=Latitude,col=Behavior),size=0.5)+ borders(fill="grey90") + coord_cartesian(ylim = range(mdat$Latitude),xlim=range(mdat$Longitude)) + theme_bw() + mytheme 
+mybbox<-make_bbox(data=mdat,lat=Latitude,lon=Longitude,f=0.25)
+troy <- get_map(location = mybbox, maptype = "toner-background")
+
+attr_troy <- attr(troy, "bb")    # save attributes from original
+
+# change color in raster
+troy[troy == "#FFFFFF"] <- "#C0C0C0"
+troy[troy == "#000000"] <- "#FFFFFF"
+
+# correct class, attributes
+class(troy) <- c("ggmap", "raster")
+attr(troy, "bb") <- attr_troy
+
+ggmap(troy) +geom_path(data=state_est,aes(x=Longitude, y=Latitude,group=paste(Animal,Track)),size=0.5) + geom_point(data=state_est,aes(x=Longitude, y=Latitude,col=Behavior),size=0.5) + mytheme
 ```
 
 # Comparison with 2d movement model
@@ -510,7 +531,7 @@ data=list(argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tracks,argos_clas
 pt<-c("alpha","gamma","state")
 
 if(newModel){
-  system.time(foraging<-jags.parallel(model.file = "Bayesian/Foraging.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=55000,n.burnin=54500,n.thin=2,DIC=FALSE))
+  system.time(foraging<-jags.parallel(model.file = "Bayesian/Foraging.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=5000,n.burnin=4800,n.thin=2,DIC=FALSE))
   }
 
 ```
@@ -585,17 +606,38 @@ Where does the 3d predict foraging that the 2d misses?
 ```{r}
 allmodels<-spread(allmodels,Model,Behavior)
 allmodels$Mismatch<-F
-allmodels[allmodels$`2D`=="Traveling" & allmodels$`3D`=="Foraging","Mismatch"]<-TRUE
+allmodels[allmodels$`2D`=="Traveling" & allmodels$`3D` %in% c("Foraging"),"Mismatch"]<-TRUE
 
 ggplot(allmodels)+geom_path(aes(x=Longitude, y=Latitude,group=paste(Animal,Track)),size=.25) + geom_point(aes(x=Longitude, y=Latitude,col=Mismatch))+ borders(fill="grey90") + coord_cartesian(ylim = range(mdat$Latitude),xlim=range(mdat$Longitude)) + theme_bw() + mytheme + scale_color_manual(values=c("Black","Red"))
 ggsave("Figures/Mismatch1.jpg",height=4,width=7)
 ```
 
-Where does the 2d predict foraging that the 3d refines?
+Where does the 3d predict resting that the 2d misses?
+
+```{r}
+allmodels<-spread(allmodels,Model,Behavior)
+allmodels$Mismatch<-F
+allmodels[allmodels$`2D`=="Traveling" & allmodels$`3D` %in% c("Resting"),"Mismatch"]<-TRUE
+
+ggplot(allmodels)+geom_path(aes(x=Longitude, y=Latitude,group=paste(Animal,Track)),size=.25) + geom_point(aes(x=Longitude, y=Latitude,col=Mismatch))+ borders(fill="grey90") + coord_cartesian(ylim = range(mdat$Latitude),xlim=range(mdat$Longitude)) + theme_bw() + mytheme + scale_color_manual(values=c("Black","Red"))
+ggsave("Figures/Mismatch1.jpg",height=4,width=7)
+```
+
+Where does the 2d predict foraging that the 3d refines to traveling?
 
 ```{r}
 allmodels$Mismatch<-F
 allmodels[allmodels$`2D`=="Foraging" & allmodels$`3D`=="Traveling","Mismatch"]<-TRUE
+
+ggplot(allmodels)+geom_path(aes(x=Longitude, y=Latitude,group=paste(Animal,Track)),size=.25) + geom_point(aes(x=Longitude, y=Latitude,col=Mismatch))+ borders(fill="grey90") + coord_cartesian(ylim = range(mdat$Latitude),xlim=range(mdat$Longitude)) + theme_bw() + mytheme + scale_color_manual(values=c("Black","Red"))
+ggsave("Figures/Mismatch2.jpg",height=4,width=7)
+```
+
+Where does the 2d predict foraging that the 3d refines to resting?
+
+```{r}
+allmodels$Mismatch<-F
+allmodels[allmodels$`2D`=="Foraging" & allmodels$`3D`=="Resting","Mismatch"]<-TRUE
 
 ggplot(allmodels)+geom_path(aes(x=Longitude, y=Latitude,group=paste(Animal,Track)),size=.25) + geom_point(aes(x=Longitude, y=Latitude,col=Mismatch))+ borders(fill="grey90") + coord_cartesian(ylim = range(mdat$Latitude),xlim=range(mdat$Longitude)) + theme_bw() + mytheme + scale_color_manual(values=c("Black","Red"))
 ggsave("Figures/Mismatch2.jpg",height=4,width=7)

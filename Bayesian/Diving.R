@@ -116,8 +116,8 @@ cat("
     
     ##Behavioral States
     
-    gamma[1] ~ dbeta(3,2)		## gamma for state 1
-    dev ~ dunif(0.1,1)			## a random deviate to ensure that gamma[1] > gamma[2]
+    gamma[1] ~ dbeta(4,2)		## gamma for state 1
+    dev ~ dunif(0.2,1)			## a random deviate to ensure that gamma[1] > gamma[2]
     gamma[2] <- gamma[1] * dev
     
     #Intercepts
@@ -130,15 +130,15 @@ cat("
     
     #Dive Priors
     #average max depth
-    depth_mu[1] ~ dnorm(0.01,0.0001)
+    depth_mu[1] ~ dnorm(0,0.0001)T(0,)
     
     #we know that foraging dives are probably 0.1km deeper,
     #but are not more than 0.5 km deeper
-    forage ~ dunif(0.05,0.5)
+    forage ~ dunif(20,500)
     depth_mu[2] <- depth_mu[1] + forage
     
     #speed = depth/duration priors
-    duration_mu[1] ~ dnorm(5,0.01)
+    duration_mu[1] ~ dnorm(5,0.001)
     time_forage~dunif(0,60)
     duration_mu[2] = duration_mu[1] + time_forage 
     

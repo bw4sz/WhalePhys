@@ -1,6 +1,8 @@
 
     model{
     
+    #from jonsen 2016
+
     pi <- 3.141592653589
     
     #for each if 6 argos class observation error
@@ -28,14 +30,16 @@
     y[i,g,2,1:2] ~ dmnorm(y[i,g,1,1:2],iSigma)
     
     ###First Behavioral State###
-    state[i,g,1] ~ dcat(lambda[]) ## assign state for first obs
+    state[i,g,1] ~ dcat(firstmove[]) ## assign state for first obs
     
     #Process Model for movement
     for(t in 2:(steps[i,g]-1)){
     
     #Behavioral State at time T
     phi[i,g,t,1] <- alpha[state[i,g,t-1]] 
-    phi[i,g,t,2] <- 1-phi[i,g,t,1]
+    phi[i,g,t,2] <- alpha_switch[state[i,g,t-1]] 
+    phi[i,g,t,3] <- 1-(phi[i,g,t,1] + phi[i,g,t,2])
+
     state[i,g,t] ~ dcat(phi[i,g,t,])
     
     #Turning covariate
@@ -56,7 +60,8 @@
     
     #Final behavior state
     phi[i,g,steps[i,g],1] <- alpha[state[i,g,steps[i,g]-1]] 
-    phi[i,g,steps[i,g],2] <- 1-phi[i,g,steps[i,g],1]
+    phi[i,g,steps[i,g],2] <- alpha_switch[state[i,g,steps[i,g]-1]] 
+    phi[i,g,steps[i,g],3] <- 1-(phi[i,g,steps[i,g],1] + phi[i,g,steps[i,g],2])
     state[i,g,steps[i,g]] ~ dcat(phi[i,g,steps[i,g],])
     
     ##	Measurement equation - irregular observations
@@ -102,51 +107,65 @@
     ##Mean Angle
     tmp[1] ~ dbeta(10, 10)
     tmp[2] ~ dbeta(10, 10)
-    
+    tmp[3] ~ dbeta(10, 10)
+
     # prior for theta in 'traveling state'
     theta[1] <- (2 * tmp[1] - 1) * pi
     
     # prior for theta in 'foraging state'    
     theta[2] <- (tmp[2] * pi * 2)
     
+    theta[3] <- (tmp[3] * pi * 2)
+
     ##Move persistance
     # prior for gamma (autocorrelation parameter)
-    #from jonsen 2016
     
     ##Behavioral States
     
-    gamma[1] ~ dbeta(3,2)		## gamma for state 1
+    gamma[1] ~ dbeta(5,2)		## 2d movement for traveling state
     dev ~ dunif(0.1,1)			## a random deviate to ensure that gamma[1] > gamma[2]
-    gamma[2] <- gamma[1] * dev
+    gamma[2] <- gamma[1] * dev ## 2d movement for foraging state
+    gamma[3] ~ dbeta(2,20) ## 2d movement for resting state
     
-    #Intercepts
+    #Temporal autocorrelation in behavior - remain in current state
     alpha[1] ~ dbeta(1,1)
     alpha[2] ~ dbeta(1,1)
+    alpha[3] ~ dbeta(1,1)
     
-    #Probability of behavior switching 
-    lambda[1] ~ dbeta(1,1)
-    lambda[2] <- 1 - lambda[1]
+    #Temporal autocorrelation in behavior - transition to +1 state
+    alpha_switch[1] ~ dbeta(1,1)
+    alpha_switch[2] ~ dbeta(1,1)
+    alpha_switch[3] ~ dbeta(1,1)
+
+    #Probability of initial behavior
+    firstmove ~ ddirch(rep(1,3))
     
-    #Dive Priors
-    #average max depth
-    depth_mu[1] ~ dnorm(0.01,0.0001)
+    #Dive Mean Priors
+    depth_mu[1] ~ dnorm(0,0.0001)T(0,)
     
-    #we know that foraging dives are probably 0.1km deeper,
-    #but are not more than 0.5 km deeper
-    forage ~ dunif(0.05,0.5)
+    #we know that foraging dives are probably deeper than traveling dives,
+    forage ~ dunif(20,500)
     depth_mu[2] <- depth_mu[1] + forage
-    
-    #speed = depth/duration priors
-    duration_mu[1] ~ dnorm(5,0.01)
+
+    #resting should basically be no dive depths (could be lnorm for exploratory dives)
+    depth_mu[3] ~ dnorm(0,0.01)
+
+    #Duration Mean Priors
+    duration_mu[1] ~ dnorm(5,0.01) #traveling
     time_forage~dunif(0,60)
-    duration_mu[2] = duration_mu[1] + time_forage 
-    
+    duration_mu[2] = duration_mu[1] + time_forage #foraging
+    duration_mu[3] ~ dnorm(0,0.01) # resting
+
     #depth and duration variance
     depth_tau[1] ~ dunif(0,500)
     depth_tau[2] ~ dunif(0,500)
+    depth_tau[3] ~ dunif(0,500)
+
     duration_tau[1] ~ dunif(0,500)
     duration_tau[2] ~ dunif(0,500)
-    
+    duration_tau[3] ~ dunif(0,500)
+
+    ##Observation Model##
     ##Argos priors##
     #longitudinal argos precision, from Jonsen 2005, 2016, represented as precision not sd
     
