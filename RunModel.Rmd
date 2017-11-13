@@ -133,11 +133,9 @@ ggplot(dive[,],aes(x=timestamp,y=-DepthMax)) + geom_point(size=0.1) + geom_line(
 ggsave("Figures/perindividual.jpeg",height=6,width=12)
 ```
 
-```{r}
-dive %>% group_by(Animal,Year) %>% summarize(n=n())
-```
 
 ```{r}
+
 mdat<-dive
 
 mybbox<-make_bbox(data=mdat,lat=Latitude,lon=Longitude,f=0.25)
@@ -174,7 +172,7 @@ return(troy)
 ## Data Statistics before track cut
 
 ```{r}
-mdat %>% group_by(Animal) %>% summarize(n=n())
+mdat %>% group_by(Animal) %>% summarize(n=n(),argos=sum(!is.na(Latitude)),dive=sum(!is.na(DepthMax)))
 nrow(mdat)
 ```
 
@@ -193,12 +191,17 @@ mdat$LocalHour<-strftime(mdat$localtime,format="%H")
 mdat$DurationMax<-mdat$DurationMax/60
 
 #dives can't be longer than 20 minutes
-mdat<-mdat %>% filter(DurationMax<20)
+mdat<-mdat %>% filter(is.na(DurationMax)|DurationMax<20)
 
 #view data
-ggmap(troy)+geom_path(data=mdat,aes(x=Longitude, y=Latitude,group=Animal),size=.5) + geom_point(data=mdat,aes(x=Longitude, y=Latitude)) + theme_bw() + mytheme + scale_color_continuous(low="blue",high="red") + labs(col="Max Dive Depth (km)")
-#ggsave("Figures/Map.svg")
-#ggsave("Figures/Map.png")
+ggmap(troy)+geom_path(data=mdat,aes(x=Longitude, y=Latitude,group=Animal),size=.5) + geom_point(data=mdat,aes(x=Longitude, y=Latitude,col=as.factor(Animal)),size=0.1) + theme_bw() + mytheme
+ggsave("Figures/Map.svg")
+ggsave("Figures/Map.png")
+
+ggplot(mdat,aes(x=DurationMax,y=DepthMax)) + geom_point() + theme_bw() + labs(x="Duration (min)",y="Depth (m)")
+
+ggplot(mdat %>% filter(DepthMax<50),aes(x=DurationMax,y=DepthMax)) + geom_point() + theme_bw() + labs(x="Duration (min)",y="Depth (m)")
+
 ```
 
 ```{r,eval=F}
@@ -269,61 +272,62 @@ step_length=6
 
 sxy<-split(mdat,mdat$Animal)
 
-d<-d %>% arrange(timestamp)
-startpoint<-which.min(!is.na(d$Latitude))
-d<-d[startpoint:nrow(d),]
-
-d$interval <- cut(d$timestamp,breaks = seq(min(d$timestamp), max(d$timestamp), as.difftime(step_length, units="hours")))
-
-as.xts(d$timestamp)
-
-#cut time into length steps
-cut(d$timestamp,6)
-
+#Cut into tracks
 #time diff function
 timed<-function(d,step_length){
   
-  d$j[1]<-0
-  for (x in 2:nrow(d)){
-    d$j[x]<-as.numeric(difftime(as.POSIXct(d$timestamp[x]),as.POSIXct(d$timestamp[x-1]),units="mins"))/(step_length*60)
+  #Order and start with a valid observation
+  d<-d %>% arrange(timestamp)
+  startpoint<-which.min(!is.na(d$Latitude))
+  d<-d[startpoint:nrow(d),]
+  d$interval <- cut(d$timestamp,breaks = seq(min(d$timestamp), max(d$timestamp), as.difftime(step_length, units="hours")))
+  
+  #If there are no argos observations, remove interval.
+  remove_interval<-d %>% group_by(interval) %>% summarize(n=length(!is.na(Latitude))) %>% filter(n==0)
+  d<-d %>% filter(!interval %in% remove_interval )
+  
+  #Can we have empty argos intervals?
+  d<-d %>% filter(!is.na(interval)) %>% droplevels()
+  
+  #which intervals are more than 12 hours apart
+  Track=c()
+  Track[1]<-1
+  counter=1
+  
+  for(x in 2:length(unique(d$interval))){
+    difft<-as.numeric(difftime(as.POSIXct(unique(d$interval)[x]),as.POSIXct(unique(d$interval)[x-1]),units="hours"))
+    if(difft>step_length){
+      counter=counter+1
+    } 
+    Track[x]<-counter
   }
   
-  #Split out track endings
-  ends<-c(1,which(d$j>1),nrow(d))
-
-  for(w in 2:length(ends)){
-    d[ends[w-1]:ends[w],"Track"]<-w-1
-  }
+  d<-d %>% inner_join(data.frame(interval=unique(d$interval),Track))
   
-  #remove tracks that are shorter than 1 days
-  track_time<-d %>% group_by(Track) %>% summarize(mt=difftime(max(as.POSIXct(timestamp)),min(as.POSIXct(timestamp)),units="hours")) %>% filter(mt>=24) %>% .$Track
+  #First position in each track must be a valid position, recode 
+  d<-d %>% group_by(Track) %>% filter(timestamp >= min(timestamp[!is.na(Latitude)]))
   
-  d<-d[d$Track %in% track_time,]
+  #get jStep and interval time
+  d<-d %>% group_by(interval) %>% mutate(j=difftime(timestamp,as.POSIXct(interval,tz="GMT"),units="hours")/step_length,jStep=1:n())
   
-  #renumber the tracks
-  d$Track<-as.numeric(as.factor(d$Track))
+  #set step and remove tracks less than 2 steps, a bit ugly to maintain subgroup order.
+  d<-d %>% group_by(Track) %>% mutate(step=as.numeric(as.factor(as.character(interval)))) %>% filter(max(step) > 2)
+  
+  #remove tracks that are shorter than 12 hours
+  track_time<-d %>% group_by(Track) %>% summarize(mt=difftime(max(as.POSIXct(timestamp)),min(as.POSIXct(timestamp)),units="hours")) %>% filter(mt>=12) %>% .$Track
+  
   return(d)
   }
 
 sxy<-lapply(sxy,timed,step_length=step_length)
-
-#Format matrices for jags
-mdat<-bind_rows(sxy)
-
-sxy<-split(mdat,list(mdat$Animal,mdat$Track),drop=TRUE)
-
-sxy<-lapply(sxy,function(x){
-#How many observations in each step length segment
-x$step<-as.numeric(cut(as.POSIXct(x$timestamp),paste(step_length,"hours")))
-return(x)
-})
-
 mdat<-bind_rows(sxy)
 ```
 
 ## Data statistics after track cut
 ```{r}
 mdat %>% group_by(Animal) %>% summarize(n=n())
+mdat %>% group_by(Animal) %>% summarize(Tracks=length(unique(Track)))
+
 ```
 
 ```{r}
@@ -333,26 +337,18 @@ mdat %>% group_by(Animal) %>% summarize(n=n())
 mdat<-mdat %>% filter(Animal %in% c("131134"))
 
 #remake map
-troy<-makemap(mdat)
+#troy<-makemap(mdat,scale=6)
 ####################################################
 
 #refactor animal
-mdat$Animal<-as.numeric(as.factor(mdat$Animal))
+mdat$jAnimal<-as.numeric(as.factor(mdat$Animal))
 
 ##Split into format for JAGS
-
-#total number of steps per track/animal
-steps_all<-mdat %>% group_by(Animal,Track) %>% summarize(n=length(unique(step)))
-
-# give each step a label
-mdat<-mdat %>% group_by(Animal,Track,step) %>% mutate(jStep=1:n())
-
 #Cast time array
-j<-reshape2::acast(mdat,Animal~Track~step~jStep,value.var="j")
+j<-reshape2::acast(mdat,jAnimal~Track~step~jStep,value.var="j")
 
 #how many observations per individual in each step
-mdat$step<-factor(mdat$step,levels=1:max(steps_all$n))
-idx<-reshape2::melt(table(mdat$Animal,mdat$Track,mdat$step))
+idx<-mdat %>% group_by(jAnimal,Track,step) %>% summarize(n=n())
 colnames(idx)<-c("Animal","Track","step","jStep")
 idx<-reshape2::acast(data=idx,Animal~Track~step)
 
@@ -363,18 +359,20 @@ ind=length(unique(mdat$Animal))
 tracks<-mdat %>% group_by(Animal) %>% summarize(tracks=length(unique(Track))) %>% .$tracks
 
 #steps per track
+steps_all<-mdat %>% group_by(Animal,Track) %>% summarize(n=length(unique(step)))
 steps<-reshape2::acast(steps_all,Animal~Track,value.var="n")
 
 #obs array
 obs<-reshape2::melt(mdat,measure.vars=c("Longitude","Latitude"))
 obs<-reshape2::acast(obs,Animal~Track~step~jStep~variable,fun.aggregate = mean)
+obs[!is.finite(obs)]<-NA
 
 #argos class array
 mdat$argos.lc<-factor(mdat$Quality,levels=c(3,2,1,0,"A","B"))
 mdat$numargos<-as.numeric(mdat$argos.lc)
 obs_class<-reshape2::acast(mdat,Animal~Track~step~jStep,value.var="numargos",fun.aggregate = min)
-
-obs_class[!is.finite(obs_class)]<-NA
+#set interpolated observations to having lowest class of argos error
+obs_class[!is.finite(obs_class)]<-5
 
 #average dive depth array
 maxdive<-reshape2::acast(mdat,Animal~Track~step~jStep,value.var="DepthMax",fun.aggregate = mean)
@@ -408,13 +406,13 @@ source("Bayesian/ThreeState.R")
 
 #prior cov shape
 R <- diag(c(1,1))
-data=list(duration=diveduration,dive=maxdive,argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tracks,argos_class=obs_class)
+data=list(duration=diveduration,divedepth=maxdive,argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tracks,argos_class=obs_class)
 
 #paramters to track
-pt<-c("Traveling","Foraging","gamma","duration_mu","duration_tau","depth_mu","depth_tau","dive_new","state","E","Enew")
+pt<-c("Traveling","Foraging","gamma","duration_mu","duration_tau","depth_mu","depth_tau","dive_new","state","E","Enew","argos")
 
 if(newModel){
-  system.time(diving<-jags.parallel(model.file = "Bayesian/ThreeState.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=5000,n.burnin=4500,n.thin=2,DIC=FALSE))
+  system.time(diving<-jags.parallel(model.file = "Bayesian/ThreeState.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=2000,n.burnin=1900,n.thin=2,DIC=FALSE))
   }
 
 ```
@@ -454,12 +452,21 @@ splitpc[c("dive_new","E","Enew")]<-lapply(splitpc[c("dive_new","E","Enew")],func
     pc<-data.frame(x,sv)
     return(pc)
 }) 
+
+#argos index
+splitpc[c("argos")]<-lapply(splitpc[c("argos")],function(x){
+    sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+),(\\d+),(\\d+),(\\d+),(\\d+)]"))[,3:7]
+    colnames(sv)<-c("Animal","Track","step","jStep","xy")
+    pc<-data.frame(x,sv)
+    return(pc)
+}) 
+
 #bind all matrices back together
 pc_dive<-bind_rows(splitpc)
 rm(splitpc)
 
-ggplot(pc_dive[!pc_dive$parameter %in% c("dive_new","state","E","Enew","eval"),],aes(x=Draw,y=value,col=as.factor(chain))) + geom_line() + facet_wrap(~par,scales="free")
-ggplot(pc_dive[!pc_dive$parameter %in% c("dive_new","state","E","Enew","eval"),],aes(x=value,fill=as.factor(chain))) + geom_histogram() + facet_wrap(~par,scales="free")
+ggplot(pc_dive[!pc_dive$parameter %in% c("dive_new","state","E","Enew","eval","argos"),],aes(x=Draw,y=value,col=as.factor(chain))) + geom_line() + facet_wrap(~par,scales="free")
+ggplot(pc_dive[!pc_dive$parameter %in% c("dive_new","state","E","Enew","eval","argos"),],aes(x=value,fill=as.factor(chain))) + geom_histogram() + facet_wrap(~par,scales="free")
 
 ```
 
@@ -484,34 +491,8 @@ ggplot(tmatrix,aes(x=value)) + facet_wrap(~To) + geom_density(aes(fill=BState))
 #ggplot(tmatrix,aes(x=BState,y=To,fill=value)) + geom_tile() 
 ```
 
-### Time foraging as a function of time
-
-```{r,eval=F}
-foraging_time<-function(alpha,draws,step){
-  states<-c()
-  
-  #initial state is traveling
-  states[1]<-(1)
-  
-  for(x in 2:draws){
-    
-    #probability of staying, or switching, to traveling state
-    travel_prob=alpha %>% filter(Previous_State==states[x-1]) %>% sample_n(1) %>% .$value
-    
-    #pick next state
-    states[x]<-rbinom(1,1,travel_prob)
-  }
-  
-  #total hours of foraging
-  total_foraging<-sum(states==0) * step
-return(total_foraging)
-}
-
-states<-foraging_time(alpha=alpha,draw=20,step=12)
-
-```
-
 ## Simulate dive depth
+
 ```{r}
 depth_mu1<-pc_dive %>% filter(parameter %in% c("depth_mu"),Behavior==1)
 depth_mu2<-pc_dive %>% filter(parameter %in% c("depth_mu"),Behavior==2)
@@ -522,7 +503,7 @@ depth_tau2<-pc_dive %>% filter(parameter %in% c("depth_tau"),Behavior==2)
 depth_tau3<-pc_dive %>% filter(parameter %in% c("depth_tau"),Behavior==3)
 
 #how many of each state to draw?
-statecount<-pc_dive %>% filter(parameter=="state") %>% group_by(Animal,Track,step) %>% summarize(state=names(sort(table(value)))[1]) %>% ungroup() %>% mutate(Animal=as.numeric(as.character(Animal)),Track=as.numeric(as.character(Track))) %>% inner_join(mdat,by=c("Animal","Track","step")) %>% group_by(state) %>% summarize(n=n()) %>% data.frame()
+statecount<-pc_dive %>% filter(parameter=="state") %>% group_by(jAnimal=Animal,Track,step) %>% summarize(state=names(sort(table(value)))[1]) %>% ungroup() %>% mutate(jAnimal=as.numeric(as.character(jAnimal)),Track=as.numeric(as.character(Track)),step=as.numeric(as.character(step)))  %>% inner_join(mdat,by=c("jAnimal","Track","step")) %>% group_by(state) %>% summarize(n=n()) %>% data.frame()
 
 #simulate dives 
 travel_dives<-data.frame(MaxDepth=rtruncnorm(statecount[1,"n"], mean=depth_mu1$value,sd=sqrt(1/depth_tau1$value),a=0),Behavior="Traveling")
@@ -550,7 +531,7 @@ duration_tau2<-pc_dive %>% filter(parameter %in% c("duration_tau"),Behavior==2)
 duration_tau3<-pc_dive %>% filter(parameter %in% c("duration_tau"),Behavior==3)
 
 #how many of each state to draw?
-statecount<-pc_dive %>% filter(parameter=="state") %>% group_by(Animal,Track,step) %>% summarize(state=names(sort(table(value)))[1]) %>% ungroup() %>% mutate(Animal=as.numeric(as.character(Animal)),Track=as.numeric(as.character(Track))) %>% inner_join(mdat,by=c("Animal","Track","step")) %>% group_by(state) %>% summarize(n=n()) %>% data.frame()
+statecount<-pc_dive %>% filter(parameter=="state") %>% group_by(jAnimal=Animal,Track,step) %>% summarize(state=names(sort(table(value)))[1]) %>% ungroup() %>% mutate(jAnimal=as.numeric(as.character(jAnimal)),Track=as.numeric(as.character(Track)),step=as.numeric(as.character(step))) %>% inner_join(mdat,by=c("jAnimal","Track","step")) %>% group_by(state) %>% summarize(n=n()) %>% data.frame()
 
 #simulate dives 
 travel_dives<-data.frame(DurationMax=rtruncnorm(statecount[1,"n"], mean=duration_mu1$value,sd=sqrt(1/duration_tau1$value),a=0),Behavior="Traveling")
@@ -582,7 +563,7 @@ mdat$Animal<-as.factor(mdat$Animal)
 mdat$Track<-as.factor(mdat$Track)
 mdat$step<-as.factor(mdat$step)
 
-state_est<-pc_dive %>% group_by(Animal,Track,step) %>% filter(parameter=="state") %>% summarize(Behavior=Mode(value)) %>% inner_join(mdat)
+state_est<-pc_dive %>% group_by(jAnimal=Animal,Track,step) %>%  filter(parameter=="state") %>% summarize(Behavior=Mode(value)) %>% ungroup()  %>% mutate(jAnimal=as.numeric(as.character(jAnimal)),Track=as.numeric(as.character(Track)),step=as.numeric(as.character(step))) %>% inner_join(mdat)
 
 state_est[state_est$Behavior==1,"Behavior"]<-"Traveling"
 state_est[state_est$Behavior==2,"Behavior"]<-"Foraging"
@@ -594,9 +575,6 @@ state_est[state_est$Behavior==3,"Behavior"]<-"Resting"
 ggplot(state_est,aes(x=timestamp,y=-DepthMax,col=Behavior)) + geom_point() + geom_line(size=0.25,aes(group=1)) + facet_wrap(~Animal,scales="free",ncol=1) + theme_bw()
 ggsave("Figures/TemporalBehavior.svg")
 ggsave("Figures/TemporalBehavior.jpeg",height=8,width=12)
-
-#by_state<-state_est %>% group_by(Animal,Track,step) %>% summarize(timestamp=min(timestamp),dive=mean(DepthMax),Behavior=unique(Behavior))
-#ggplot(by_state,aes(x=timestamp,y=-dive,col=Behavior)) + geom_point() + geom_line(size=0.25,aes(group=1)) + facet_wrap(~Animal,scales="free",ncol=1) + theme_bw()
 ```
 
 ## Diel
@@ -618,8 +596,34 @@ ggsave("Figures/Month.svg")
 ggsave("Figures/Month.png",height=5,width=8,unit="in")
 ```
 
+# Raw Argos Data
+
 ```{r,fig.height=10,fig.width=10}
-ggmap(troy) +geom_path(data=state_est,aes(x=Longitude, y=Latitude,group=paste(Animal,Track)),size=0.5) + geom_point(data=state_est,aes(x=Longitude, y=Latitude,col=Behavior),size=0.5) + mytheme
+state_est<-state_est %>% arrange(Animal,Track,timestamp)
+ggmap(troy) +geom_path(data=state_est %>% filter(!is.na(Latitude)),aes(x=Longitude, y=Latitude,group=paste(Animal,Track)),size=0.5) + geom_point(data=state_est,aes(x=Longitude, y=Latitude,col=Behavior),size=0.5) + mytheme
+```
+
+#Inferred tracks
+
+```{r}
+argos_est<-pc_dive %>% group_by(jAnimal=Animal,Track,step,jStep,xy) %>%  filter(parameter=="argos") %>% summarize(mean=mean(value),upper=quantile(value,0.95),lower=quantile(value,0.05)) %>% ungroup()  %>% mutate(jAnimal=as.numeric(as.character(jAnimal)),Track=as.numeric(as.character(Track)),step=as.numeric(as.character(step)),jStep=as.numeric(as.character(jStep))) %>% gather("position","value",-(jAnimal:xy)) %>% mutate(position=paste(position,xy,sep="_")) %>% dplyr::select(-xy) %>% spread(position,value) %>% inner_join(state_est)
+```
+
+## Imputed path
+
+### Mean
+
+```{r,fig.height=10,fig.width=10}
+argos_est<-argos_est %>% arrange(Animal,Track,timestamp)
+ggmap(troy) +geom_path(data=argos_est,aes(x=mean_1, y=mean_2,group=paste(Animal,Track)),size=0.5) + geom_point(data=argos_est,aes(x=mean_1, y=mean_2,col=Behavior),size=1) + mytheme
+ggmap(troy) + geom_point(data=argos_est,aes(x=mean_1, y=mean_2,col=Behavior),size=3) + mytheme
+```
+
+### With CI interval
+
+```{r,fig.height=10,fig.width=10}
+argos_est<-argos_est %>% arrange(Animal,Track,timestamp)
+ggmap(troy) +geom_path(data=argos_est,aes(x=mean_1, y=mean_2,group=paste(Animal,Track)),size=0.5) +geom_path(data=argos_est,aes(x=lower_1, y=lower_2,group=paste(Animal,Track)),size=0.5) +geom_path(data=argos_est,aes(x=upper_1, y=upper_2,group=paste(Animal,Track)),size=0.5) + mytheme
 ```
 
 # Comparison with 2d movement model
@@ -638,7 +642,7 @@ data=list(argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tracks,argos_clas
 pt<-c("alpha","gamma","state")
 
 if(newModel){
-  system.time(foraging<-jags.parallel(model.file = "Bayesian/Foraging.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10000,n.burnin=9500,n.thin=2,DIC=FALSE))
+  system.time(foraging<-jags.parallel(model.file = "Bayesian/Foraging.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=100,n.burnin=0,n.thin=2,DIC=FALSE))
   }
 
 ```
@@ -691,7 +695,7 @@ mdat$Animal<-as.factor(mdat$Animal)
 mdat$Track<-as.factor(mdat$Track)
 mdat$step<-as.factor(mdat$step)
 
-state_est2d<-pc_dive2d %>% group_by(Animal,Track,step) %>% filter(parameter=="state") %>% summarize(Behavior =Mode(value)) %>% inner_join(mdat)
+state_est2d<-pc_dive2d %>% group_by(jAnimal=Animal,Track,step) %>% filter(parameter=="state") %>% summarize(Behavior =Mode(value)) %>% ungroup()  %>% mutate(jAnimal=as.numeric(as.character(jAnimal)),Track=as.numeric(as.character(Track)),step=as.numeric(as.character(step))) %>% inner_join(mdat)
 
 state_est2d[state_est2d$Behavior==1,"Behavior"]<-"Traveling"
 state_est2d[state_est2d$Behavior==2,"Behavior"]<-"Foraging"
@@ -744,8 +748,6 @@ Where does the 2d predict foraging that the 3d refines to resting?
 ```{r}
 allmodels$Mismatch<-F
 allmodels[allmodels$`2D`=="Foraging" & allmodels$`3D`=="Resting","Mismatch"]<-TRUE
-
-ggmap(troy)+geom_path(data=allmodels,aes(x=Longitude, y=Latitude,group=paste(Animal,Track)),size=.25) + geom_point(data=allmodels,aes(x=Longitude, y=Latitude,col=Mismatch)) + theme_bw() + mytheme + scale_color_manual(values=c("Black","Red"))
 ggsave("Figures/Mismatch2.jpg",height=4,width=7)
 ```
 

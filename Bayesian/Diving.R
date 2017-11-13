@@ -75,7 +75,7 @@ cat("
     
     #for each dive depth
     #dive depth at time t
-    dive[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])T(0.01,)
+    divedepth[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])T(0.01,)
     
     #dive speed (max depth/duration)
     duration[i,g,t,u] ~ dnorm(duration_mu[state[i,g,t]],duration_tau[state[i,g,t]])T(0.01,)

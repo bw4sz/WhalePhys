@@ -87,7 +87,7 @@ cat("
     #Assess Model Fit
     
     #Fit dive discrepancy statistics
-    eval[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])
+    eval[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])T(0,)
     E[i,g,t,u]<-pow((dive[i,g,t,u]-eval[i,g,t,u]),2)/(eval[i,g,t,u])
     
     dive_new[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])T(0,)
@@ -122,13 +122,13 @@ cat("
     
     ##Behavioral States
     
-    gamma[1] ~ dbeta(4,2)	
-    gamma[2] ~ dbeta(2,4)	
-    gamma[3] ~ dbeta(2,4)	## 2d movement for traveling state
-    #dev ~ dbeta(1,1)			## a random deviate to ensure that gamma[1] > gamma[2]
-    #gamma[2] <- gamma[1] * dev ## 2d movement for foraging state
-    #dev2 ~ dbeta(1,1)			## a random deviate to ensure that gamma[1] > gamma[3]
-    #gamma[3] <- gamma[1] * dev2  ## 2d movement for resting state
+    gamma[1] ~ dbeta(5,2)	
+    #gamma[2] ~ dbeta(2,4)	
+    #gamma[3] ~ dbeta(2,8)	## 2d movement for traveling state
+    dev ~ dbeta(1,1)			## a random deviate to ensure that gamma[1] > gamma[2]
+    gamma[2] <- gamma[1] * dev ## 2d movement for foraging state
+    dev2 ~ dbeta(1,1)			## a random deviate to ensure that gamma[1] > gamma[3]
+    gamma[3] <- gamma[1] * dev2  ## 2d movement for resting state
     
     #Temporal autocorrelation in behavior - remain in current state
     Traveling[1] ~ dbeta(1,1)
@@ -145,31 +145,36 @@ cat("
     
     #Dive Mean Priors
     #Foraging dives are deepest
-    depth_mu[2]  ~ dnorm(100,0.001)
+    depth_mu[2]  ~ dnorm(100,0.001)T(0,)
     dive_forage ~ dbeta(1,1)
     
     #Traveling dives are shallower on average
     depth_mu[1] <-  dive_forage *  depth_mu[2] 
 
     #Resting dives are very shallow
-    depth_mu[3] ~ dnorm(20,0.01)T(0,)
+    depth_mu[3] ~ dnorm(0,1)T(0,)
     
+
     #Duration Mean Priors
     #Foraging dives are longest
-    duration_mu[2] ~ dnorm(5,0.001)T(0,)
-    duration_travel ~ dbeta(1,1)
-    duration_mu[1] <-duration_mu[2] * duration_travel
-    time_rest ~ dbeta(1,1)
-    duration_mu[3] <- duration_mu[2] * time_rest
+    #duration_mu[2] ~ dnorm(5,0.001)T(0,)
+    #duration_travel ~ dbeta(1,1)
+    #duration_mu[1] <-duration_mu[2] * duration_travel
+    #Resting dives don't have much duration
+    #duration_mu[3] ~ dnorm(0,1)T(0,)
     
-    #depth and duration variance
-    depth_tau[1] ~ dgamma(0.0001,0.0001)
-    depth_tau[2] ~ dgamma(0.0001,0.0001)
-    depth_tau[3] ~ dgamma(0.0001,0.0001)
+    #duration_mu[1]<-4
+    #duration_mu[2]<-10
+    #duration_mu[3]<-0
 
-    duration_tau[1] ~ dgamma(0.0001,0.0001)
-    duration_tau[2] ~ dgamma(0.0001,0.0001)
-    duration_tau[3] ~ dgamma(0.0001,0.0001)
+    #depth and duration variance
+    depth_tau[1] ~ dunif(0,100)
+    depth_tau[2] ~ dunif(0,100)
+    depth_tau[3] ~ dunif(0,100)
+
+    duration_tau[1] ~ dunif(0,100)
+    duration_tau[2] ~ dunif(0,100)
+    duration_tau[3] ~ dunif(0,100)
 
     ##Observation Model##
     ##Argos priors##
