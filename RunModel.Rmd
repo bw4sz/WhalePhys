@@ -334,7 +334,7 @@ mdat %>% group_by(Animal) %>% summarize(Tracks=length(unique(Track)))
 ###################################################
 #filter by two whales for the moment
 #mdat<-mdat %>% filter(Animal %in% c("131127","131136","131132","131133","154187","131134","131115","131111","131130","131116"))
-mdat<-mdat %>% filter(Animal %in% c("131134"))
+mdat<-mdat %>% filter(Animal %in% c("131127"))
 
 #remake map
 #troy<-makemap(mdat,scale=6)
@@ -414,12 +414,13 @@ data=list(hours=hours,divedepth=maxdive,argos=obs,steps=steps,R=R,ind=ind,j=j,id
 stage_init<-hours
 stage_init[]<-1
 
-InitStage<-list(stage=stage_init)
+InitStage <- function() {list(stage=array(data=3,dim=c(dim(hours))))}
+
 #paramters to track
 pt<-c("Traveling","Foraging","gamma","depth_mu","depth_tau","dive_new","state","E","Enew","alpha_hours","beta_hours","beta2_hours")
 
 if(newModel){
-  system.time(diving<-jags.parallel(model.file = "Bayesian/ThreeState.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10,n.burnin=0,n.thin=2,DIC=FALSE,inits = InitStage))
+  system.time(diving<-jags.parallel(model.file = "Bayesian/ThreeState.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10000,n.burnin=9500,n.thin=2,DIC=FALSE,inits = InitStage))
   }
 
 ```
@@ -438,7 +439,7 @@ pc_dive$parameter<-data.frame(str_match(pc_dive$par,"(\\w+)"))[,-1]
 splitpc<-split(pc_dive,pc_dive$parameter)
 
 #single index
-splitpc[c("Traveling","Foraging","depth_mu","depth_tau")]<-lapply(splitpc[c("Traveling","Foraging","depth_mu","depth_tau")],function(x){
+splitpc[c("Traveling","gamma","beta_hours","beta2_hours","alpha_hours","depth_mu","depth_tau")]<-lapply(splitpc[c("Traveling","gamma","alpha_hours","beta_hours","beta2_hours","depth_mu","depth_tau")],function(x){
     sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+)]"))[,3]
     pc<-data.frame(x,Behavior=sv)
     return(pc)
@@ -461,13 +462,6 @@ splitpc[c("dive_new","E","Enew")]<-lapply(splitpc[c("dive_new","E","Enew")],func
     return(pc)
 }) 
 
-#argos index
-#splitpc[c("argos")]<-lapply(splitpc[c("argos")],function(x){
-#    sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+),(\\d+),(\\d+),(\\d+),(\\d+)]"))[,3:7]
-#    colnames(sv)<-c("Animal","Track","step","jStep","xy")
-#    pc<-data.frame(x,sv)
-#    return(pc)
-#}) 
 
 #bind all matrices back together
 pc_dive<-bind_rows(splitpc)
@@ -553,15 +547,15 @@ ggplot(pc_dive[pc_dive$parameter=="dive_new",])+  geom_density(aes(x=value),col=
 ggsave("Figures/DivePredict.jpg",height=4,width=7) 
 ```
 
-```{r,eval=F}
-timef<-function(alpha,beta,beta2){
+```{r,eval=T}
+timef<-function(alpha,beta,beta2,x){
     y<-inv.logit(alpha + beta* cos((2*pi*x)/(24)) + beta2 * sin((2*pi*x)/24)^2)
     return(data.frame(x,y))
 }
 
-cosp<-pc_dive %>% filter(parameter %in% c("alpha_hours","beta_hours","beta2_hours")) %>% spread(parameter,value) %>% group_by(Draw,chain) %>% do(timef(alpha=.$alpha_hours,beta=.$beta_hours,beta2=.$beta2_hours))
+cosp<-pc_dive %>% filter(parameter %in% c("alpha_hours","beta_hours","beta2_hours")) %>% dplyr::select(-par) %>% spread(parameter,value) %>% group_by(Draw,chain,Behavior) %>% do(timef(alpha=.$alpha_hours,beta=.$beta_hours,beta2=.$beta2_hours,x=as.numeric(hours))) %>% group_by(Behavior,x) %>% summarize(mean=mean(y),upper=quantile(y,0.95),lower=quantile(y,0.05))
 
-ggplot(data=cosp,aes(x=x,y=y)) + geom_point() + geom_line() 
+ggplot(data=cosp,aes(x=x,col=Behavior)) + geom_line(aes(y=mean),col="black")  + geom_line(aes(y=upper),col="gray",linetype="dashed")+ geom_line(aes(y=lower),col="gray",linetype="dashed") + facet_wrap(~Behavior) + ylim(0,1) + theme_bw() + labs(x="Hour",y="Transition to Resting State")
 ```
 
 
@@ -591,29 +585,6 @@ state_est<-state_est %>% arrange(Animal,Track,timestamp)
 ggmap(troy) +geom_path(data=state_est %>% filter(!is.na(Latitude)),aes(x=Longitude, y=Latitude,group=paste(Animal,Track)),size=0.5) + geom_point(data=state_est,aes(x=Longitude, y=Latitude,col=Behavior),size=0.5) + mytheme
 ```
 
-#Inferred tracks
-
-```{r,eval=F}
-argos_est<-pc_dive %>% group_by(jAnimal=Animal,Track,step,jStep,xy) %>%  filter(parameter=="argos") %>% summarize(mean=mean(value),upper=quantile(value,0.95),lower=quantile(value,0.05)) %>% ungroup()  %>% mutate(jAnimal=as.numeric(as.character(jAnimal)),Track=as.numeric(as.character(Track)),step=as.numeric(as.character(step)),jStep=as.numeric(as.character(jStep))) %>% gather("position","value",-(jAnimal:xy)) %>% mutate(position=paste(position,xy,sep="_")) %>% dplyr::select(-xy) %>% spread(position,value) %>% inner_join(state_est)
-```
-
-## Imputed path
-
-### Mean
-
-```{r,fig.height=10,fig.width=10,eval=F}
-argos_est<-argos_est %>% arrange(Animal,Track,timestamp)
-ggmap(troy) +geom_path(data=argos_est,aes(x=mean_1, y=mean_2,group=paste(Animal,Track)),size=0.5) + geom_point(data=argos_est,aes(x=mean_1, y=mean_2,col=Behavior),size=1) + mytheme
-ggmap(troy) + geom_point(data=argos_est,aes(x=mean_1, y=mean_2,col=Behavior),size=3) + mytheme
-```
-
-### With CI interval
-
-```{r,fig.height=10,fig.width=10,eval=F}
-argos_est<-argos_est %>% arrange(Animal,Track,timestamp)
-ggmap(troy) +geom_path(data=argos_est,aes(x=mean_1, y=mean_2,group=paste(Animal,Track)),size=0.5) +geom_path(data=argos_est,aes(x=lower_1, y=lower_2,group=paste(Animal,Track)),size=0.5) +geom_path(data=argos_est,aes(x=upper_1, y=upper_2,group=paste(Animal,Track)),size=0.5) + mytheme
-```
-
 # Comparison with 2d movement model
 
 * Movement model
@@ -630,7 +601,7 @@ data=list(argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tracks,argos_clas
 pt<-c("alpha","gamma","state")
 
 if(newModel){
-  system.time(foraging<-jags.parallel(model.file = "Bayesian/Foraging.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=1000,n.burnin=900,n.thin=2,DIC=FALSE))
+  system.time(foraging<-jags.parallel(model.file = "Bayesian/Foraging.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10000,n.burnin=9500,n.thin=2,DIC=FALSE))
   }
 
 ```

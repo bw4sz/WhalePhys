@@ -37,7 +37,7 @@
     
     #Behavioral State at time T
     phi[i,g,t,1] <- Traveling[state[i,g,t-1]] 
-    phi[i,g,t,3] <- alpha_hours[state[i,g,t-1]] + beta_hours[state[i,g,t-1]]* cos((2*pi*hours[i,g,t])/(24)) + beta2_hours[state[i,g,t-1]] * sin((2*pi*hours[i,g,t])/24)^2
+    logit(phi[i,g,t,3]) <- alpha_hours[state[i,g,t-1]] + beta_hours[state[i,g,t-1]]* cos((2*pi*hours[i,g,t])/(24)) + beta2_hours[state[i,g,t-1]] * sin((2*pi*hours[i,g,t])/24)^2
     phi[i,g,t,2] <- 1-(phi[i,g,t,1] + phi[i,g,t,3])
 
     state[i,g,t] ~ dcat(phi[i,g,t,])
@@ -59,7 +59,7 @@
     
     #Final behavior state
     phi[i,g,steps[i,g],1] <- Traveling[state[i,g,steps[i,g]-1]] 
-    phi[i,g,steps[i,g],3] <- alpha_hours[state[i,g,steps[i,g]-1]] + beta_hours[state[i,g,steps[i,g]-1]]* cos((2*pi*hours[i,g,steps[i,g]])/(24)) + beta2_hours[state[i,g,steps[i,g]-1]] * sin((2*pi*hours[i,g,steps[i,g]])/24)^2
+    logit(phi[i,g,steps[i,g],3]) <- alpha_hours[state[i,g,steps[i,g]-1]] + beta_hours[state[i,g,steps[i,g]-1]]* cos((2*pi*hours[i,g,steps[i,g]])/(24)) + beta2_hours[state[i,g,steps[i,g]-1]] * sin((2*pi*hours[i,g,steps[i,g]])/24)^2
     phi[i,g,steps[i,g],2] <- 1-(phi[i,g,steps[i,g],1] + phi[i,g,steps[i,g],3])
     state[i,g,steps[i,g]] ~ dcat(phi[i,g,steps[i,g],])
     
@@ -78,15 +78,15 @@
     
     #for each dive depth
     #dive depth at time t
-    dive[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])T(0,)
+    dive[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])T(10,)
     
     #Assess Model Fit
     
     #Fit dive discrepancy statistics
-    eval[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])T(0,)
+    eval[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])T(10,)
     E[i,g,t,u]<-pow((dive[i,g,t,u]-eval[i,g,t,u]),2)/(eval[i,g,t,u])
     
-    dive_new[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])T(0,)
+    dive_new[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])T(10,)
     Enew[i,g,t,u]<-pow((dive_new[i,g,t,u]-eval[i,g,t,u]),2)/(eval[i,g,t,u])
     
     }
@@ -134,19 +134,19 @@
     Traveling[3] ~ dbeta(1,1)
     
     #Temporal autocorrelation in behavior - transition Foraging
-    alpha_hours[1] ~ dnorm(0,0.0001)
-    alpha_hours[2] ~ dnorm(0,0.0001)
-    alpha_hours[3] ~ dnorm(0,0.0001)
+    alpha_hours[1] ~ dnorm(0,0.386)
+    alpha_hours[2] ~ dnorm(0,0.386)
+    alpha_hours[3] ~ dnorm(0,0.386)
 
     #Effect of time of day on transitioning to resting
     beta_hours[1] <- 0 
-    beta_hours[2] ~ dnorm(0,0.0001)
-    beta_hours[3] ~ dnorm(0,0.0001)
+    beta_hours[2] ~ dnorm(0,0.386)
+    beta_hours[3] ~ dnorm(0,0.386)
 
     #Transition from travel to resting
     beta2_hours[1] <- 0
-    beta2_hours[2] ~ dnorm(0,0.0001)
-    beta2_hours[3] ~ dnorm(0,0.0001)
+    beta2_hours[2] ~ dnorm(0,0.386)
+    beta2_hours[3] ~ dnorm(0,0.386)
 
     #Probability of initial behavior
     firstmove ~ ddirch(rep(1,3))
@@ -158,8 +158,8 @@
   
     #depth and duration variance
     depth_tau[1] <-0.01
-    depth_tau[2] <- 0.01
-    depth_tau[3] <- 0.01
+    depth_tau[2] <- 0.001
+    depth_tau[3] <- 0.1
 
     ##Observation Model##
     ##Argos priors##
