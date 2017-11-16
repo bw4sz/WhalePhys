@@ -179,13 +179,13 @@ nrow(mdat)
 
 ```{r}
 #set max depth to km
-mdat$DepthMax<-mdat$DepthMax/1000
+#xmdat$DepthMax<-mdat$DepthMax/1000
 
 #Specifiy local time
   
 #local time
 mdat$localtime<-as.POSIXct(format(mdat$timestamp,tz="etc/GMT+3"))
-mdat$LocalHour<-strftime(mdat$localtime,format="%H")
+mdat$LocalHour<-as.numeric(strftime(mdat$localtime,format="%H"))
 
 #set duration to minutes
 mdat$DurationMax<-mdat$DurationMax/60
@@ -268,7 +268,7 @@ shinyApp(ui = ui, server = server)
 ```{r}
 
 ##Time is the beginning of the first point.
-step_length=6
+step_length=5
 
 sxy<-split(mdat,mdat$Animal)
 
@@ -334,7 +334,7 @@ mdat %>% group_by(Animal) %>% summarize(Tracks=length(unique(Track)))
 ###################################################
 #filter by two whales for the moment
 #mdat<-mdat %>% filter(Animal %in% c("131127","131136","131132","131133","154187","131134","131115","131111","131130","131116"))
-mdat<-mdat %>% filter(Animal %in% c("131134","131127"))
+mdat<-mdat %>% filter(Animal %in% c("131134"))
 
 #remake map
 #troy<-makemap(mdat,scale=6)
@@ -372,10 +372,12 @@ mdat$argos.lc<-factor(mdat$Quality,levels=c(3,2,1,0,"A","B"))
 mdat$numargos<-as.numeric(mdat$argos.lc)
 obs_class<-reshape2::acast(mdat,Animal~Track~step~jStep,value.var="numargos",fun.aggregate = min)
 #set interpolated observations to having lowest class of argos error
-obs_class[!is.finite(obs_class)]<-5
+obs_class[!is.finite(obs_class)]<-6
 
 #average dive depth array
 maxdive<-reshape2::acast(mdat,Animal~Track~step~jStep,value.var="DepthMax",fun.aggregate = mean)
+
+hours<-reshape2::acast(mdat,Animal~Track~step,value.var="LocalHour",fun.aggregate = min)
 
 #fill the empty values
 maxdive[!is.finite(maxdive)]<-NA
@@ -406,18 +408,24 @@ source("Bayesian/ThreeState.R")
 
 #prior cov shape
 R <- diag(c(1,1))
-data=list(divedepth=maxdive,argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tracks,argos_class=obs_class)
+data=list(hours=hours,divedepth=maxdive,argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tracks,argos_class=obs_class)
 
+#Inits
+stage_init<-hours
+stage_init[]<-1
+
+InitStage<-list(stage=stage_init)
 #paramters to track
-pt<-c("Traveling","Foraging","gamma","depth_mu","depth_tau","dive_new","state","E","Enew")
+pt<-c("Traveling","Foraging","gamma","depth_mu","depth_tau","dive_new","state","E","Enew","alpha_hours","beta_hours","beta2_hours")
 
 if(newModel){
-  system.time(diving<-jags.parallel(model.file = "Bayesian/ThreeState.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=5000,n.burnin=4500,n.thin=2,DIC=FALSE))
+  system.time(diving<-jags.parallel(model.file = "Bayesian/ThreeState.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10,n.burnin=0,n.thin=2,DIC=FALSE,inits = InitStage))
   }
 
 ```
 
 ##Chains
+
 ```{r,eval=T}
 #bind chains
 pc_dive<-reshape2::melt(diving$BUGSoutput$sims.array)
@@ -538,41 +546,24 @@ for(x in 1:nrow(statecount)){
 
 pred_dives<-bind_rows(pred_dives)
 
-ggplot(pred_dives)  + geom_histogram(data=mdat,aes(x=DepthMax*1000),col="black")+ geom_histogram(alpha=0.8,aes(x=DepthMax*1000,fill=Behavior))  + theme_bw() + labs(x="Dive Depth (m)")
+ggplot(pred_dives)  + geom_histogram(data=mdat,aes(x=DepthMax),col="black")+ geom_histogram(alpha=0.8,aes(x=DepthMax,fill=Behavior))  + theme_bw() + labs(x="Dive Depth (m)")
 ggsave("Figures/DiveHist.jpg",height=4,width=7)
 
-ggplot(pc_dive[pc_dive$parameter=="dive_new",])+  geom_density(aes(x=value*1000),col='red') + geom_density(data=mdat,aes(x=DepthMax*1000),col="black",size=1.5) + theme_bw() + labs(x="Dive Depth (m)") 
+ggplot(pc_dive[pc_dive$parameter=="dive_new",])+  geom_density(aes(x=value),col='red') + geom_density(data=mdat,aes(x=DepthMax),col="black",size=1.5) + theme_bw() + labs(x="Dive Depth (m)") 
 ggsave("Figures/DivePredict.jpg",height=4,width=7) 
 ```
 
-## Simulate dive durations
-
 ```{r,eval=F}
-duration_mu1<-pc_dive %>% filter(parameter %in% c("duration_mu"),Behavior==1)
-duration_mu2<-pc_dive %>% filter(parameter %in% c("duration_mu"),Behavior==2)
-duration_mu3<-pc_dive %>% filter(parameter %in% c("duration_mu"),Behavior==3)
+timef<-function(alpha,beta,beta2){
+    y<-inv.logit(alpha + beta* cos((2*pi*x)/(24)) + beta2 * sin((2*pi*x)/24)^2)
+    return(data.frame(x,y))
+}
 
-duration_tau1<-pc_dive %>% filter(parameter %in% c("duration_tau"),Behavior==1)
-duration_tau2<-pc_dive %>% filter(parameter %in% c("duration_tau"),Behavior==2)
-duration_tau3<-pc_dive %>% filter(parameter %in% c("duration_tau"),Behavior==3)
+cosp<-pc_dive %>% filter(parameter %in% c("alpha_hours","beta_hours","beta2_hours")) %>% spread(parameter,value) %>% group_by(Draw,chain) %>% do(timef(alpha=.$alpha_hours,beta=.$beta_hours,beta2=.$beta2_hours))
 
-#how many of each state to draw?
-statecount<-pc_dive %>% filter(parameter=="state") %>% group_by(jAnimal=Animal,Track,step) %>% summarize(state=names(sort(table(value)))[1]) %>% ungroup() %>% mutate(jAnimal=as.numeric(as.character(jAnimal)),Track=as.numeric(as.character(Track)),step=as.numeric(as.character(step))) %>% inner_join(mdat,by=c("jAnimal","Track","step")) %>% group_by(state) %>% summarize(n=n()) %>% data.frame()
-
-#simulate dives 
-travel_dives<-data.frame(DurationMax=rtruncnorm(statecount[1,"n"], mean=duration_mu1$value,sd=sqrt(1/duration_tau1$value),a=0),Behavior="Traveling")
-forage_dives<-data.frame(DurationMax=rtruncnorm(statecount[2,"n"], mean=duration_mu2$value,sd=sqrt(1/duration_tau2$value),a=0),Behavior="Foraging")
-rest_dives<-data.frame(DurationMax=rtruncnorm(statecount[2,"n"], mean=duration_mu3$value,sd=sqrt(1/duration_tau3$value),a=0),Behavior="Resting")
-
-pred_dives<-bind_rows(travel_dives,forage_dives,rest_dives)
-
-ggplot(pred_dives)  + geom_histogram(data=mdat,aes(x=DurationMax),col="black")+ geom_histogram(alpha=0.8,aes(x=DurationMax,fill=Behavior))  + theme_bw() 
-ggsave("Figures/DurationHist.jpg",height=5,width=7)
-
-ggplot(pred_dives)+  geom_density(aes(x=DurationMax),col='red') + geom_density(data=mdat,aes(x=DurationMax),col="black",size=1.5) + theme_bw() + labs(x="Dive Duration (min)")
-ggsave("Figures/DurationPred.jpg",height=5,width=7)
-
+ggplot(data=cosp,aes(x=x,y=y)) + geom_point() + geom_line() 
 ```
+
 
 ## Diel
 
@@ -639,7 +630,7 @@ data=list(argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tracks,argos_clas
 pt<-c("alpha","gamma","state")
 
 if(newModel){
-  system.time(foraging<-jags.parallel(model.file = "Bayesian/Foraging.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=100,n.burnin=0,n.thin=2,DIC=FALSE))
+  system.time(foraging<-jags.parallel(model.file = "Bayesian/Foraging.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=1000,n.burnin=900,n.thin=2,DIC=FALSE))
   }
 
 ```
