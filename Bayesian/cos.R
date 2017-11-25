@@ -1,7 +1,7 @@
 x<-runif(1e4,0,24)
-alpha=1
-beta=1
-beta2=1
+alpha=-1
+beta=3
+beta2=0
 timef<-function(x){
     y<-inv.logit(alpha + beta* cos((2*pi*x)/(24)) + beta2 * sin((2*pi*x)/24)^2)
     return(data.frame(x,y))
@@ -12,8 +12,8 @@ d$Season<-"Summer"
 ggplot(data=d,aes(x=x,y=y,col=Season)) + geom_point() + geom_line() 
 
 x<-runif(1e4,0,24)
-alpha=1
-beta=0.5
+alpha=-0.8
+beta=3
 beta2=0
 timef<-function(x){
   y<-inv.logit(alpha + beta* cos((2*pi*x)/(24)) + beta2 * sin((2*pi*x)/24)^2)

@@ -79,15 +79,15 @@ cat("
     
     #for each dive depth
     #dive depth at time t
-    dive[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])T(10,)
+    dive[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])T(0,)
     
     #Assess Model Fit
     
     #Fit dive discrepancy statistics
-    eval[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])T(10,)
+    eval[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])T(0,)
     E[i,g,t,u]<-pow((dive[i,g,t,u]-eval[i,g,t,u]),2)/(eval[i,g,t,u])
     
-    dive_new[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])T(10,)
+    dive_new[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])T(0,)
     Enew[i,g,t,u]<-pow((dive_new[i,g,t,u]-eval[i,g,t,u]),2)/(eval[i,g,t,u])
     
     }
@@ -153,14 +153,14 @@ cat("
     firstmove ~ ddirch(rep(1,3))
   
     #Foraging dives are deepest
-    depth_mu[2] <- 100
-    depth_mu[1] <- 20
-    depth_mu[3] <- 15
+    depth_mu[2] <- 0.150
+    depth_mu[1] <- 0.02
+    depth_mu[3] <- 0.015
   
     #depth and duration variance
-    depth_tau[1] <-0.01
-    depth_tau[2] <- 0.01
-    depth_tau[3] <- 0.1
+    depth_tau[1] <-2000
+    depth_tau[2] <- 300
+    depth_tau[3] <- 5000
 
     ##Observation Model##
     ##Argos priors##

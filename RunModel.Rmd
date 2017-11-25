@@ -179,7 +179,7 @@ nrow(mdat)
 
 ```{r}
 #set max depth to km
-#xmdat$DepthMax<-mdat$DepthMax/1000
+mdat$DepthMax<-mdat$DepthMax/1000
 
 #Specifiy local time
   
@@ -191,7 +191,7 @@ mdat$LocalHour<-as.numeric(strftime(mdat$localtime,format="%H"))
 mdat$DurationMax<-mdat$DurationMax/60
 
 #dives can't be longer than 20 minutes
-mdat<-mdat %>% filter(is.na(DurationMax)|DurationMax<20)
+#mdat<-mdat %>% filter(is.na(DurationMax)|DurationMax<20)
 
 #view data
 ggmap(troy)+geom_path(data=mdat,aes(x=Longitude, y=Latitude,group=Animal),size=.5) + geom_point(data=mdat,aes(x=Longitude, y=Latitude,col=as.factor(Animal)),size=0.1) + theme_bw() + mytheme
@@ -207,9 +207,9 @@ ggplot(mdat %>% filter(DepthMax<50),aes(x=DurationMax,y=DepthMax)) + geom_point(
 ```{r,eval=F}
 #By individual
 
-#for(x in unique(mdat$Animal)){
-#  mmap<-makemap(mdat %>% filter(Animal==x))
-#  ggmap(mmap)+geom_path(data=mdat,aes(x=Longitude, y=Latitude,group=Animal),size=.5) + geom_point(data=mdat,aes(x=Longitude, # y=Latitude,col=DepthMax)) + theme_bw() + mytheme + scale_color_continuous(low="blue",high="red") + labs(col="Max Dive Depth (km)") + #facet_wrap(~Animal,ncol=2)
+for(x in unique(mdat$Animal)){
+  mmap<-makemap(mdat %>% filter(Animal==x))
+  ggmap(mmap)+geom_path(data=mdat,aes(x=Longitude, y=Latitude,group=Animal),size=.5) + geom_point(data=mdat,aes(x=Longitude, y=Latitude,col=DepthMax)) + theme_bw() + mytheme + scale_color_continuous(low="blue",high="red") + labs(col="Max Dive Depth (km)") + #facet_wrap(~Animal,ncol=2)
 }
 
 ```
@@ -268,7 +268,7 @@ shinyApp(ui = ui, server = server)
 ```{r}
 
 ##Time is the beginning of the first point.
-step_length=5
+step_length=4
 
 sxy<-split(mdat,mdat$Animal)
 
@@ -334,7 +334,7 @@ mdat %>% group_by(Animal) %>% summarize(Tracks=length(unique(Track)))
 ###################################################
 #filter by two whales for the moment
 #mdat<-mdat %>% filter(Animal %in% c("131127","131136","131132","131133","154187","131134","131115","131111","131130","131116"))
-mdat<-mdat %>% filter(Animal %in% c("131127"))
+mdat<-mdat %>% filter(Animal %in% c("131134"))
 
 #remake map
 #troy<-makemap(mdat,scale=6)
@@ -377,7 +377,7 @@ obs_class[!is.finite(obs_class)]<-6
 #average dive depth array
 maxdive<-reshape2::acast(mdat,Animal~Track~step~jStep,value.var="DepthMax",fun.aggregate = mean)
 
-hours<-reshape2::acast(mdat,Animal~Track~step,value.var="LocalHour",fun.aggregate = min)
+hours<-reshape2::acast(mdat,Animal~Track~step~jStep,value.var="LocalHour")
 
 #fill the empty values
 maxdive[!is.finite(maxdive)]<-NA
@@ -404,7 +404,9 @@ ggplot(divepriors) + geom_density(aes(x=value,fill=key),alpha=0.5) + theme_bw()
 
 ```{r,eval=T}
 #source jags file
-source("Bayesian/ThreeState.R")
+source("Bayesian/TimeDive.R")
+
+writeLines(readLines("Bayesian/TimeDive.R"))
 
 #prior cov shape
 R <- diag(c(1,1))
@@ -417,10 +419,10 @@ stage_init[]<-1
 InitStage <- function() {list(stage=array(data=3,dim=c(dim(hours))))}
 
 #paramters to track
-pt<-c("Traveling","Foraging","gamma","depth_mu","depth_tau","dive_new","state","E","Enew","alpha_hours","beta_hours","beta2_hours")
+pt<-c("Traveling","Foraging","gamma","depth_mu","depth_tau","dive_new","state","E","Enew","beta","beta2")
 
 if(newModel){
-  system.time(diving<-jags.parallel(model.file = "Bayesian/ThreeState.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10000,n.burnin=9500,n.thin=2,DIC=FALSE,inits = InitStage))
+  system.time(diving<-jags.parallel(model.file = "Bayesian/TimeDive.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=100,n.burnin=0,n.thin=2,DIC=FALSE,inits = InitStage))
   }
 
 ```
@@ -439,7 +441,7 @@ pc_dive$parameter<-data.frame(str_match(pc_dive$par,"(\\w+)"))[,-1]
 splitpc<-split(pc_dive,pc_dive$parameter)
 
 #single index
-splitpc[c("Traveling","gamma","beta_hours","beta2_hours","alpha_hours","depth_mu","depth_tau")]<-lapply(splitpc[c("Traveling","gamma","alpha_hours","beta_hours","beta2_hours","depth_mu","depth_tau")],function(x){
+splitpc[c("Traveling","gamma","beta","beta","depth_mu","depth_tau")]<-lapply(splitpc[c("Traveling","gamma","alpha_hours","beta","beta2","depth_mu","depth_tau")],function(x){
     sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+)]"))[,3]
     pc<-data.frame(x,Behavior=sv)
     return(pc)
@@ -520,7 +522,8 @@ ggplot(state_est,aes(x=timestamp,y=-DepthMax,col=Behavior)) + geom_point() + geo
 ggsave("Figures/TemporalBehavior.svg")
 ggsave("Figures/TemporalBehavior.jpeg",height=8,width=12)
 ```
-## Simulate dive depth
+
+## Simulate dive depths
 
 ```{r}
 #Behavior lookup
@@ -540,10 +543,10 @@ for(x in 1:nrow(statecount)){
 
 pred_dives<-bind_rows(pred_dives)
 
-ggplot(pred_dives)  + geom_histogram(data=mdat,aes(x=DepthMax),col="black")+ geom_histogram(alpha=0.8,aes(x=DepthMax,fill=Behavior))  + theme_bw() + labs(x="Dive Depth (m)")
+ggplot(pred_dives)  + geom_histogram(data=mdat,aes(x=DepthMax*1000),col="black")+ geom_histogram(alpha=0.8,aes(x=DepthMax*1000,fill=Behavior))  + theme_bw() + labs(x="Dive Depth (m)")
 ggsave("Figures/DiveHist.jpg",height=4,width=7)
 
-ggplot(pc_dive[pc_dive$parameter=="dive_new",])+  geom_density(aes(x=value),col='red') + geom_density(data=mdat,aes(x=DepthMax),col="black",size=1.5) + theme_bw() + labs(x="Dive Depth (m)") 
+ggplot(pc_dive[pc_dive$parameter=="dive_new",])+  geom_density(aes(x=value*1000),col='red') + geom_density(data=mdat,aes(x=DepthMax*1000),col="black",size=1.5) + theme_bw() + labs(x="Dive Depth (m)") 
 ggsave("Figures/DivePredict.jpg",height=4,width=7) 
 ```
 
@@ -553,7 +556,7 @@ timef<-function(alpha,beta,beta2,x){
     return(data.frame(x,y))
 }
 
-cosp<-pc_dive %>% filter(parameter %in% c("alpha_hours","beta_hours","beta2_hours")) %>% dplyr::select(-par) %>% spread(parameter,value) %>% group_by(Draw,chain,Behavior) %>% do(timef(alpha=.$alpha_hours,beta=.$beta_hours,beta2=.$beta2_hours,x=as.numeric(hours))) %>% group_by(Behavior,x) %>% summarize(mean=mean(y),upper=quantile(y,0.95),lower=quantile(y,0.05))
+cosp<-pc_dive %>% filter(parameter %in% c("alpha_hours","beta_hours","beta2_hours")) %>% dplyr::select(-par) %>% spread(parameter,value) %>% group_by(Draw,chain,Behavior) %>% do(timef(alpha=.$alpha_hours,beta=.$beta_hours,beta2=.$beta2_hours,x=as.numeric(hours))) %>% group_by(Behavior,x) %>% summarize(mean=mean(y,na.rm=T),upper=quantile(y,0.95,na.rm=T),lower=quantile(y,0.05,na.rm=T))
 
 ggplot(data=cosp,aes(x=x,col=Behavior)) + geom_line(aes(y=mean),col="black")  + geom_line(aes(y=upper),col="gray",linetype="dashed")+ geom_line(aes(y=lower),col="gray",linetype="dashed") + facet_wrap(~Behavior) + ylim(0,1) + theme_bw() + labs(x="Hour",y="Transition to Resting State")
 ```

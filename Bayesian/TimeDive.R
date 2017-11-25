@@ -1,8 +1,7 @@
-
+sink("Bayesian/TimeDive.jags")
+cat("
     model{
     
-    #from jonsen 2016
-
     pi <- 3.141592653589
     
     #for each if 6 argos class observation error
@@ -30,16 +29,14 @@
     y[i,g,2,1:2] ~ dmnorm(y[i,g,1,1:2],iSigma)
     
     ###First Behavioral State###
-    state[i,g,1] ~ dcat(firstmove[]) ## assign state for first obs
+    state[i,g,1] ~ dcat(lambda[]) ## assign state for first obs
     
     #Process Model for movement
     for(t in 2:(steps[i,g]-1)){
     
     #Behavioral State at time T
-    phi[i,g,t,1] <- Traveling[state[i,g,t-1]] 
-    logit(phi[i,g,t,3]) <- alpha_hours[state[i,g,t-1]] + beta_hours[state[i,g,t-1]]* cos((2*pi*hours[i,g,t])/(24)) + beta2_hours[state[i,g,t-1]] * sin((2*pi*hours[i,g,t])/24)^2
-    phi[i,g,t,2] <- 1-(phi[i,g,t,1] + phi[i,g,t,3])
-
+    phi[i,g,t,1] <- alpha[state[i,g,t-1]] 
+    phi[i,g,t,2] <- 1-phi[i,g,t,1]
     state[i,g,t] ~ dcat(phi[i,g,t,])
     
     #Turning covariate
@@ -55,12 +52,12 @@
     #Gaussian Displacement in location
     y[i,g,t+1,1:2] ~ dmnorm(d[i,g,t,1:2],iSigma)
     
+    
     }
     
     #Final behavior state
-    phi[i,g,steps[i,g],1] <- Traveling[state[i,g,steps[i,g]-1]] 
-    logit(phi[i,g,steps[i,g],3]) <- alpha_hours[state[i,g,steps[i,g]-1]] + beta_hours[state[i,g,steps[i,g]-1]]* cos((2*pi*hours[i,g,steps[i,g]])/(24)) + beta2_hours[state[i,g,steps[i,g]-1]] * sin((2*pi*hours[i,g,steps[i,g]])/24)^2
-    phi[i,g,steps[i,g],2] <- 1-(phi[i,g,steps[i,g],1] + phi[i,g,steps[i,g],3])
+    phi[i,g,steps[i,g],1] <- alpha[state[i,g,steps[i,g]-1]] 
+    phi[i,g,steps[i,g],2] <- 1-phi[i,g,steps[i,g],1]
     state[i,g,steps[i,g]] ~ dcat(phi[i,g,steps[i,g],])
     
     ##	Measurement equation - irregular observations
@@ -73,20 +70,22 @@
     zhat[i,g,t,u,1:2] <- (1-j[i,g,t,u]) * y[i,g,t-1,1:2] + j[i,g,t,u] * y[i,g,t,1:2]
     
     #for each lat and long
-    #observed position
+    #argos error
     argos[i,g,t,u,1:2] ~ dmnorm(zhat[i,g,t,u,1:2],argos_prec[argos_class[i,g,t,u],1:2,1:2])
     
     #for each dive depth
     #dive depth at time t
-    dive[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])T(0,)
+    alpha_dive[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])T(0.01,)
+    divedepth[i,g,t,u] <- alpha_divenew[i,g,t,u] + beta[state[i,g,t]] * cos((2*pi*hours[i,g,t,u])/24) + beta2[state[i,g,t]] * sin((2*pi*hours[i,g,t,u])/24)^2 
     
     #Assess Model Fit
     
     #Fit dive discrepancy statistics
-    eval[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])T(0,)
-    E[i,g,t,u]<-pow((dive[i,g,t,u]-eval[i,g,t,u]),2)/(eval[i,g,t,u])
+    eval[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])
+    E[i,g,t,u]<-pow((divedepth[i,g,t,u]-eval[i,g,t,u]),2)/(eval[i,g,t,u])
     
-    dive_new[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])T(0,)
+    alpha_divenew[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])T(0.01,)
+    dive_new[i,g,t,u] <- alpha_divenew[i,g,t,u] + beta[state[i,g,t]] * cos((2*pi*hours[i,g,t,u])/24) + beta2[state[i,g,t]] * sin((2*pi*hours[i,g,t,u])/24)^2 
     Enew[i,g,t,u]<-pow((dive_new[i,g,t,u]-eval[i,g,t,u]),2)/(eval[i,g,t,u])
     
     }
@@ -103,65 +102,52 @@
     ##Mean Angle
     tmp[1] ~ dbeta(10, 10)
     tmp[2] ~ dbeta(10, 10)
-    tmp[3] ~ dbeta(10, 10)
-
+    
     # prior for theta in 'traveling state'
     theta[1] <- (2 * tmp[1] - 1) * pi
     
     # prior for theta in 'foraging state'    
     theta[2] <- (tmp[2] * pi * 2)
     
-    theta[3] <- (tmp[3] * pi * 2)
-
     ##Move persistance
     # prior for gamma (autocorrelation parameter)
+    #from jonsen 2016
     
     ##Behavioral States
     
-    #gamma[1] ~ dbeta(3,2)
-    #dev ~ dunif(0,0.5)			## a random deviate to ensure that gamma[1] > gamma[2]
-    #gamma[2] <- gamma[1] * dev ## 2d movement for foraging state
-    #dev2 ~ dunif(0,0.5)			## a random deviate to ensure that gamma[1] > gamma[3]
-    #gamma[3] <- gamma[1] * dev2  ## 2d movement for resting state
+    gamma[1] ~ dbeta(3,2)		## gamma for state 1
+    dev ~ dunif(0.2,1)			## a random deviate to ensure that gamma[1] > gamma[2]
+    gamma[2] <- gamma[1] * dev
     
-    gamma[1]<-0.7
-    gamma[2]<-0.3
-    gamma[3]<-0.3
-
-    #Temporal autocorrelation in behavior - remain in current state
-    Traveling[1] ~ dbeta(1,1)
-    Traveling[2] ~ dbeta(1,1)
-    Traveling[3] ~ dbeta(1,1)
+    #Intercepts
+    alpha[1] ~ dbeta(1,1)
+    alpha[2] ~ dbeta(1,1)
     
-    #Temporal autocorrelation in behavior - transition Foraging
-    alpha_hours[1] ~ dnorm(0,0.386)
-    alpha_hours[2] ~ dnorm(0,0.386)
-    alpha_hours[3] ~ dnorm(0,0.386)
-
-    #Effect of time of day on transitioning to resting
-    beta_hours[1] <- 0 
-    beta_hours[2] ~ dnorm(0,0.386)
-    beta_hours[3] ~ dnorm(0,0.386)
-
-    #Transition from travel to resting
-    beta2_hours[1] <- 0
-    beta2_hours[2] ~ dnorm(0,0.386)
-    beta2_hours[3] ~ dnorm(0,0.386)
-
-    #Probability of initial behavior
-    firstmove ~ ddirch(rep(1,3))
-  
+    #Probability of behavior switching 
+    lambda[1] ~ dbeta(1,1)
+    lambda[2] <- 1 - lambda[1]
+    
+    #Dive Priors
+    #average max depth
     #Foraging dives are deepest
-    depth_mu[2] <- 0.150
-    depth_mu[1] <- 0.02
-    depth_mu[3] <- 0.015
-  
+    depth_mu[2] ~ dnorm(0.15,50)T(0,)
+    dive_travel ~ dbeta(1,1)
+    
+    #Traveling dives are shallower on average than feeding dives
+    depth_mu[1] <- dive_travel *  depth_mu[2] 
+    
     #depth and duration variance
-    depth_tau[1] <-2000
-    depth_tau[2] <- 300
-    depth_tau[3] <- 5000
+    depth_tau[1] ~ dunif(0,500)
+    depth_tau[2] ~ dunif(0,500)
+    
+    #Cosine effect of time of day on depth
+    beta[1] <- 0
+    beta[2] ~ dnorm(0,0.0001)
+    
+    #Sine effect of time of day on depth
+    beta2[1] <- 0
+    beta2[2] ~ dnorm(0,0.0001)
 
-    ##Observation Model##
     ##Argos priors##
     #longitudinal argos precision, from Jonsen 2005, 2016, represented as precision not sd
     
@@ -181,4 +167,6 @@
     argos_alpha[5] <- 3.836444
     argos_alpha[6] <- 0.1081156
     
-    }
+    }"
+    ,fill=TRUE)
+sink()
