@@ -75,17 +75,17 @@ cat("
     
     #for each dive depth
     #dive depth at time t
-    alpha_dive[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])T(0.01,)
-    divedepth[i,g,t,u] <- alpha_divenew[i,g,t,u] + beta[state[i,g,t]] * cos((2*pi*hours[i,g,t,u])/24) + beta2[state[i,g,t]] * sin((2*pi*hours[i,g,t,u])/24)^2 
-    
+    alpha_dive[i,g,t,u]<-depth_mu[state[i,g,t]] + beta[state[i,g,t]] * cos((2*pi*hours[i,g,t,u])/24) + beta2[state[i,g,t]] * sin((2*pi*hours[i,g,t,u])/24)^2 
+    divedepth[i,g,t,u] ~ dnorm(alpha_dive[i,g,t,u],depth_tau[state[i,g,t]])T(0.01,)
+
     #Assess Model Fit
     
     #Fit dive discrepancy statistics
     eval[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])
     E[i,g,t,u]<-pow((divedepth[i,g,t,u]-eval[i,g,t,u]),2)/(eval[i,g,t,u])
     
-    alpha_divenew[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])T(0.01,)
-    dive_new[i,g,t,u] <- alpha_divenew[i,g,t,u] + beta[state[i,g,t]] * cos((2*pi*hours[i,g,t,u])/24) + beta2[state[i,g,t]] * sin((2*pi*hours[i,g,t,u])/24)^2 
+    alpha_dive_new[i,g,t,u]<-depth_mu[state[i,g,t]] + beta[state[i,g,t]] * cos((2*pi*hours[i,g,t,u])/24) + beta2[state[i,g,t]] * sin((2*pi*hours[i,g,t,u])/24)^2 
+    dive_new[i,g,t,u] ~ dnorm(alpha_dive_new[i,g,t,u],depth_tau[state[i,g,t]])T(0.01,)
     Enew[i,g,t,u]<-pow((dive_new[i,g,t,u]-eval[i,g,t,u]),2)/(eval[i,g,t,u])
     
     }
@@ -119,7 +119,7 @@ cat("
     dev ~ dunif(0.2,1)			## a random deviate to ensure that gamma[1] > gamma[2]
     gamma[2] <- gamma[1] * dev
     
-    #Intercepts
+    #Transition Intercepts
     alpha[1] ~ dbeta(1,1)
     alpha[2] ~ dbeta(1,1)
     

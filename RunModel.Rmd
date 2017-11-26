@@ -416,13 +416,13 @@ data=list(hours=hours,divedepth=maxdive,argos=obs,steps=steps,R=R,ind=ind,j=j,id
 stage_init<-hours
 stage_init[]<-1
 
-InitStage <- function() {list(stage=array(data=3,dim=c(dim(hours))))}
+InitStage <- function() {list(stage=array(data=2,dim=c(dim(hours))))}
 
 #paramters to track
-pt<-c("Traveling","Foraging","gamma","depth_mu","depth_tau","dive_new","state","E","Enew","beta","beta2")
+pt<-c("alpha","gamma","depth_mu","depth_tau","dive_new","state","E","Enew","beta","beta2")
 
 if(newModel){
-  system.time(diving<-jags.parallel(model.file = "Bayesian/TimeDive.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=100,n.burnin=0,n.thin=2,DIC=FALSE,inits = InitStage))
+  system.time(diving<-jags.parallel(model.file = "Bayesian/TimeDive.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10000,n.burnin=9500,n.thin=2,DIC=FALSE,inits = InitStage))
   }
 
 ```
@@ -441,7 +441,8 @@ pc_dive$parameter<-data.frame(str_match(pc_dive$par,"(\\w+)"))[,-1]
 splitpc<-split(pc_dive,pc_dive$parameter)
 
 #single index
-splitpc[c("Traveling","gamma","beta","beta","depth_mu","depth_tau")]<-lapply(splitpc[c("Traveling","gamma","alpha_hours","beta","beta2","depth_mu","depth_tau")],function(x){
+splitpc[c("alpha","gamma","beta","beta2","depth_mu","depth_tau")]<-lapply(splitpc[c("alpha","gamma","beta","beta2","depth_mu","depth_tau")],function(x){
+  print(head(x))
     sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+)]"))[,3]
     pc<-data.frame(x,Behavior=sv)
     return(pc)
@@ -474,27 +475,6 @@ ggplot(pc_dive[!pc_dive$parameter %in% c("dive_new","state","E","Enew","eval","a
 
 ```
 
-## Temporal autocorrelation in foraging 
-
-Reconstructing the transition matrix
-
-```{r,eval=F}
-amatrix<-pc_dive %>% filter(parameter %in% c("Traveling","Foraging"))
-amatrix<-amatrix %>%  dplyr::select(Draw,chain,parameter,Behavior,value) %>% spread(parameter,value) %>% mutate(Resting=1-(Traveling + Foraging))
-
-tmatrix<-gather(amatrix,To,value,-Draw,-chain,-Behavior)
-
-btable<-data.frame(Behavior=c(1,2,3),BState=c("Traveling","Foraging","Resting"))
-
-tmatrix<-merge(tmatrix,btable)
-head(tmatrix)
-ggplot(tmatrix,aes(x=value)) + facet_grid(To~BState) + geom_histogram() 
-ggplot(tmatrix,aes(x=value)) + facet_wrap(~To) + geom_density(aes(fill=BState)) 
-
-#mean matrix?
-#ggplot(tmatrix,aes(x=BState,y=To,fill=value)) + geom_tile() 
-```
-
 # Temporal Variation in Dive Behavior
 
 ```{r}
@@ -514,7 +494,6 @@ state_est<-pc_dive %>% group_by(jAnimal=Animal,Track,step) %>%  filter(parameter
 
 state_est[state_est$Behavior==1,"Behavior"]<-"Traveling"
 state_est[state_est$Behavior==2,"Behavior"]<-"Foraging"
-state_est[state_est$Behavior==3,"Behavior"]<-"Resting"
 ```
 
 ```{r,fig.height=15,fig.width=12}
@@ -527,38 +506,39 @@ ggsave("Figures/TemporalBehavior.jpeg",height=8,width=12)
 
 ```{r}
 #Behavior lookup
-blookup<-data.frame(Behavior=c("Traveling","Foraging","Resting"),Index=c(1,2,3))
+blookup<-data.frame(Behavior=c("Traveling","Foraging"),Index=c(1,2))
 
 #how many of each state to draw?
 statecount<-state_est %>% group_by(Behavior) %>% filter(is.na(Latitude)) %>% summarize(n=length(jStep))
 
 pred_dives<-list()
-for(x in 1:nrow(statecount)){
-  index<-blookup[ blookup$Behavior %in% statecount[x,"Behavior"],"Index"]
+pred_depths<-list()
+for(i in 1:nrow(statecount)){
+  index<-blookup[ blookup$Behavior %in% statecount[i,"Behavior"],"Index"]
   depth_tau<-pc_dive %>% filter(parameter %in% c("depth_tau"),Behavior==index)
   depth_mu<-pc_dive %>% filter(parameter %in% c("depth_mu"),Behavior==index)
-  travel_dives<-data.frame(DepthMax=rtruncnorm(n=as.numeric(statecount[x,"n"]),mean=depth_mu$value,sd=1/sqrt(depth_tau$value),a=0),Behavior=statecount[x,"Behavior"])
-  pred_dives[[x]]<-travel_dives
+  beta<-pc_dive %>% filter(parameter %in% c("beta"),Behavior==index)
+  beta2<-pc_dive %>% filter(parameter %in% c("beta2"),Behavior==index)
+  for(x in 1:length(depth_mu)){
+      dive_intercept<-rtruncnorm(n=1,mean=depth_mu$value[x],sd=1/sqrt(depth_tau$value[x]),a=0)
+       DepthMax<-dive_intercept  + beta$value[x]* cos((2*pi*unique(mdat$LocalHour))/(24)) + beta2$value[x] * sin((2*pi*unique(mdat$LocalHour))/24)^2
+       pred_depths[[x]]<-data.frame(DepthMax,Hour=unique(mdat$LocalHour),Behavior=statecount[i,"Behavior"])
+  }
+  pred_dives[[i]]<-bind_rows(pred_depths)
 }
 
+  
 pred_dives<-bind_rows(pred_dives)
 
-ggplot(pred_dives)  + geom_histogram(data=mdat,aes(x=DepthMax*1000),col="black")+ geom_histogram(alpha=0.8,aes(x=DepthMax*1000,fill=Behavior))  + theme_bw() + labs(x="Dive Depth (m)")
+ggplot(pred_dives) + geom_histogram(alpha=0.8,aes(x=DepthMax*1000,fill=Behavior))  + theme_bw() + labs(x="Dive Depth (m)")
 ggsave("Figures/DiveHist.jpg",height=4,width=7)
+
+#By hours
+sumhours<-pred_dives %>% group_by(Hour,Behavior) %>% summarize(mean=mean(DepthMax)*1000,upper=quantile(DepthMax*1000,0.95),lower=quantile(DepthMax*1000,0.05)) 
+ggplot(sumhours,aes(x=Hour,y=mean)) + geom_line(linetype="dashed") + geom_ribbon(aes(ymin=lower,ymax=upper),alpha=0.4) + facet_wrap(~Behavior)
 
 ggplot(pc_dive[pc_dive$parameter=="dive_new",])+  geom_density(aes(x=value*1000),col='red') + geom_density(data=mdat,aes(x=DepthMax*1000),col="black",size=1.5) + theme_bw() + labs(x="Dive Depth (m)") 
 ggsave("Figures/DivePredict.jpg",height=4,width=7) 
-```
-
-```{r,eval=T}
-timef<-function(alpha,beta,beta2,x){
-    y<-inv.logit(alpha + beta* cos((2*pi*x)/(24)) + beta2 * sin((2*pi*x)/24)^2)
-    return(data.frame(x,y))
-}
-
-cosp<-pc_dive %>% filter(parameter %in% c("alpha_hours","beta_hours","beta2_hours")) %>% dplyr::select(-par) %>% spread(parameter,value) %>% group_by(Draw,chain,Behavior) %>% do(timef(alpha=.$alpha_hours,beta=.$beta_hours,beta2=.$beta2_hours,x=as.numeric(hours))) %>% group_by(Behavior,x) %>% summarize(mean=mean(y,na.rm=T),upper=quantile(y,0.95,na.rm=T),lower=quantile(y,0.05,na.rm=T))
-
-ggplot(data=cosp,aes(x=x,col=Behavior)) + geom_line(aes(y=mean),col="black")  + geom_line(aes(y=upper),col="gray",linetype="dashed")+ geom_line(aes(y=lower),col="gray",linetype="dashed") + facet_wrap(~Behavior) + ylim(0,1) + theme_bw() + labs(x="Hour",y="Transition to Resting State")
 ```
 
 
