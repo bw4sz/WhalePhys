@@ -37,7 +37,6 @@ Dive information is a mixture model based on behavior (S)
 
 $\text{Average dive depth}(\psi)$
 $$ DiveDepth \sim Normal(dive_{\mu_S},dive_{\tau_S})$$
-$$ DiveDuration \sim Normal(duration_{\mu_S},duration_{\tau_S})$$
 
 
 ```{r,echo=F,warning=F,message=F}
@@ -121,14 +120,14 @@ dive<-dive %>% arrange(timestamp)
 
 ## Dive profiles per indidivuals
 
-```{r,fig.height=12}
+```{r,fig.height=11}
 ggplot(dive[,],aes(x=timestamp,y=-DepthMax)) + geom_point(size=0.1) + geom_line(size=0.1) + facet_wrap(~Animal,scales="free",ncol=3) + theme_bw()
 ggsave("Figures/perindividual.jpeg",height=6,width=12)
 ```
 
 Dive Profiles with Argos timestamps
 
-```{r}
+```{r,fig.height=11}
 ggplot(dive[,],aes(x=timestamp,y=-DepthMax)) + geom_point(size=0.1) + geom_line(size=0.1) + facet_wrap(~Animal,scales="free",ncol=2) + theme_bw() + geom_point(data=dive[!is.na(dive$Latitude),],y=0,col="red",size=1,aes(x=timestamp))
 ggsave("Figures/perindividual.jpeg",height=6,width=12)
 ```
@@ -177,9 +176,9 @@ nrow(mdat)
 ```
 
 
-```{r}
+```{r,fig.width=12,fig.height=10}
 #set max depth to km
-mdat$DepthMax<-mdat$DepthMax/1000
+#mdat$DepthMax<-mdat$DepthMax/1000
 
 #Specifiy local time
   
@@ -197,10 +196,6 @@ mdat$DurationMax<-mdat$DurationMax/60
 ggmap(troy)+geom_path(data=mdat,aes(x=Longitude, y=Latitude,group=Animal),size=.5) + geom_point(data=mdat,aes(x=Longitude, y=Latitude,col=as.factor(Animal)),size=0.1) + theme_bw() + mytheme
 ggsave("Figures/Map.svg")
 ggsave("Figures/Map.png")
-
-ggplot(mdat,aes(x=DurationMax,y=DepthMax)) + geom_point() + theme_bw() + labs(x="Duration (min)",y="Depth (m)")
-
-ggplot(mdat %>% filter(DepthMax<50),aes(x=DurationMax,y=DepthMax)) + geom_point() + theme_bw() + labs(x="Duration (min)",y="Depth (m)")
 
 ```
 
@@ -220,7 +215,7 @@ server <- function(input, output) {
 # create a reactive value that will store the click position
 data_of_click <- reactiveValues(clickedMarker=NULL)
 
-dat<-mdat %>% filter(Animal=="131134")
+dat<-mdat %>% filter(Animal=="131127",(!is.na())) %>% mutate(ID=1:nrow(.))
 
 # Leaflet map with 2 markers
 pal<-colorFactor(heat.colors(10),dat$DepthMax)
@@ -334,10 +329,10 @@ mdat %>% group_by(Animal) %>% summarize(Tracks=length(unique(Track)))
 ###################################################
 #filter by two whales for the moment
 #mdat<-mdat %>% filter(Animal %in% c("131127","131136","131132","131133","154187","131134","131115","131111","131130","131116"))
-mdat<-mdat %>% filter(Animal %in% c("131134"))
+mdat<-mdat %>% filter(Animal %in% c("131127"))
 
 #remake map
-#troy<-makemap(mdat,scale=6)
+troy<-makemap(mdat)
 ####################################################
 
 #refactor animal
@@ -382,24 +377,10 @@ hours<-reshape2::acast(mdat,Animal~Track~step~jStep,value.var="LocalHour")
 #fill the empty values
 maxdive[!is.finite(maxdive)]<-NA
 
-#average number of dives
-diveduration<-reshape2::acast(mdat,Animal~Track~step~jStep,value.var="DurationMax")
 ```
 
-## Dive Prior Shapes
 
-### Dive Depth
-
-```{r}
-#Dives
-travel_dive_prior<-abs(rnorm(1e5,rnorm(1e5,0,1/sqrt(0.0001)),1/sqrt(runif(1e5,0,500))))
-forage_dive_prior<-abs(rnorm(1e5,rnorm(1e5,50,1/sqrt(0.0001)),1/sqrt(runif(1e5,0,500))))
-rest_dive_prior<-abs(rnorm(1e5,rnorm(1e5,0,1/sqrt(0.01)),1/sqrt(runif(1e5,0,500))))
-divepriors<-gather(data.frame(Travel=travel_dive_prior,Forage=forage_dive_prior,Resting=rest_dive_prior))
-ggplot(divepriors) + geom_density(aes(x=value,fill=key),alpha=0.5) + theme_bw()
-```
-
-```{r,child="Bayesian/ThreeState.R",eval=T}
+```{r,child="Bayesian/TimeDive.R",eval=T}
 ```
 
 ```{r,eval=T}
@@ -422,7 +403,7 @@ InitStage <- function() {list(stage=array(data=2,dim=c(dim(hours))))}
 pt<-c("alpha","gamma","depth_mu","depth_tau","dive_new","state","E","Enew","beta","beta2")
 
 if(newModel){
-  system.time(diving<-jags.parallel(model.file = "Bayesian/TimeDive.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10000,n.burnin=9500,n.thin=2,DIC=FALSE,inits = InitStage))
+  system.time(diving<-jags.parallel(model.file = "Bayesian/TimeDive.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=2000,n.burnin=1000,n.thin=2,DIC=FALSE,inits = InitStage))
   }
 
 ```
@@ -474,7 +455,7 @@ ggplot(pc_dive[!pc_dive$parameter %in% c("dive_new","state","E","Enew","eval","a
 ggplot(pc_dive[!pc_dive$parameter %in% c("dive_new","state","E","Enew","eval","argos"),],aes(x=value,fill=as.factor(chain))) + geom_histogram() + facet_wrap(~par,scales="free")
 
 #sum table
-pc_dive %>% filter(!parameter %in% c("dive_new","state","E","Enew","eval","argos")) %>% group_by(parameter) %>%  summarize(mean=mean(value),upper=quantile(value,0.95),lower=quantile(value,0.05)) 
+pc_dive %>% filter(!parameter %in% c("dive_new","state","E","Enew","eval","argos")) %>% group_by(parameter,Behavior) %>% summarize(mean=round(mean(value),3),upper=round(quantile(value,0.95),3),lower=round(quantile(value,0.05),3)) 
 
 #Animal lookup table
 pc_dive<-mdat %>% ungroup() %>%  dplyr::select(Animal,jAnimal)  %>% distinct() %>% mutate(jAnimal=as.factor(jAnimal)) %>% full_join(pc_dive)
@@ -540,18 +521,19 @@ for(i in 1:nrow(statecount)){
   
 pred_dives<-bind_rows(pred_dives)
 
-ggplot(pred_dives) + geom_histogram(alpha=0.8,aes(x=DepthMax*1000,fill=Behavior))  + theme_bw() + labs(x="Dive Depth (m)")
+ggplot(pred_dives) + geom_histogram(alpha=0.8,aes(x=DepthMax,fill=Behavior))  + theme_bw() + labs(x="Dive Depth (m)")
 ggsave("Figures/DiveHist.jpg",height=4,width=7)
 
 #By hours
-sumhours<-pred_dives %>% group_by(Hour,Behavior) %>% summarize(mean=mean(DepthMax)*1000,upper=quantile(DepthMax*1000,0.95),lower=quantile(DepthMax*1000,0.05)) 
+sumhours<-pred_dives %>% group_by(Hour,Behavior) %>% summarize(mean=mean(DepthMax),upper=quantile(DepthMax,0.95),lower=quantile(DepthMax,0.05)) 
 ggplot(sumhours,aes(x=Hour,y=mean)) + geom_line(linetype="dashed") + geom_ribbon(aes(ymin=lower,ymax=upper),alpha=0.4) + facet_wrap(~Behavior)
 
-ggplot(pc_dive[pc_dive$parameter=="dive_new",])+  geom_density(aes(x=value*1000),col='red') + geom_density(data=mdat,aes(x=DepthMax*1000),col="black",size=1.5) + theme_bw() + labs(x="Dive Depth (m)") 
+ggplot(pc_dive[pc_dive$parameter=="dive_new",])+  geom_density(aes(x=value),col='red') + geom_density(data=mdat,aes(x=DepthMax),col="black",size=1.5) + theme_bw() + labs(x="Dive Depth (m)") 
 ggsave("Figures/DivePredict.jpg",height=4,width=7) 
 
 #TODO split by animal
-ggplot(pc_dive[pc_dive$parameter=="dive_new",])+  geom_density(aes(x=value*1000),col='red') + geom_density(data=mdat,aes(x=DepthMax*1000),col="black",size=1.5) + theme_bw() + labs(x="Dive Depth (m)")  + facet_wrap(~Animal)
+byanimal<-pc_dive[pc_dive$parameter=="dive_new",]
+ggplot(mdat)+  geom_density(aes(x=DepthMax),col="black",size=1.5) +  facet_wrap(~Animal,scales="free") + geom_density(data=byanimal,aes(x=value),col='red') + theme_bw() + labs(x="Dive Depth (m)")  
 
 ```
 
@@ -601,7 +583,7 @@ data=list(argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tracks,argos_clas
 pt<-c("alpha","gamma","state")
 
 if(newModel){
-  system.time(foraging<-jags.parallel(model.file = "Bayesian/Foraging.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10000,n.burnin=9500,n.thin=2,DIC=FALSE))
+  system.time(foraging<-jags.parallel(model.file = "Bayesian/Foraging.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=5000,n.burnin=4000,n.thin=2,DIC=FALSE))
   }
 
 ```
@@ -664,10 +646,11 @@ state_est2d$Model<-"2D"
 
 allmodels<-bind_rows(state_est,state_est2d)
 
+allmodels<-allmodels %>% arrange(Model,Animal,Track,step,jStep) %>% filter(!is.na(Longitude))
 ```
 
 ```{r}
-ggmap(troy) +geom_path(data=allmodels,aes(x=Longitude, y=Latitude,group=paste(Animal,Track)),size=0.5) + geom_point(data=allmodels,aes(x=Longitude, y=Latitude,col=Behavior),size=0.5) + theme_bw() + mytheme  + facet_wrap(~Model)
+ggmap(troy) +geom_path(data=allmodels,aes(x=Longitude, y=Latitude,group=1,col=Behavior),size=0.5) + geom_point(data=allmodels,aes(x=Longitude, y=Latitude,group=1,col=Behavior),size=0.3) + mytheme + facet_wrap(~Model)
 ggsave("Figures/SpatialPred.jpg",height=4,width=7)
 ```
 
