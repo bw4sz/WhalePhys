@@ -118,7 +118,7 @@
     #dev ~ dunif(0.3,1)			## a random deviate to ensure that gamma[1] > gamma[2]
     #gamma[2] <- gamma[1] * dev
     
-    gamma[1] <- 0.9
+    gamma[1] <- 0.7
     gamma[2] <- 0.2
     
     #Transition Intercepts

@@ -329,7 +329,7 @@ mdat %>% group_by(Animal) %>% summarize(Tracks=length(unique(Track)))
 ###################################################
 #filter by two whales for the moment
 #mdat<-mdat %>% filter(Animal %in% c("131127","131136","131132","131133","154187","131134","131115","131111","131130","131116"))
-mdat<-mdat %>% filter(Animal %in% c("131127"))
+mdat<-mdat %>% filter(Animal %in% c("131115"))
 
 #remake map
 troy<-makemap(mdat)
