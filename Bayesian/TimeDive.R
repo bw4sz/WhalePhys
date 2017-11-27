@@ -115,8 +115,8 @@ cat("
     
     ##Behavioral States
     
-    gamma[1] ~ dbeta(3,2)		## gamma for state 1
-    dev ~ dunif(0.2,1)			## a random deviate to ensure that gamma[1] > gamma[2]
+    gamma[1] ~ dbeta(4,2)		## gamma for state 1
+    dev ~ dunif(0.3,1)			## a random deviate to ensure that gamma[1] > gamma[2]
     gamma[2] <- gamma[1] * dev
     
     #Transition Intercepts
