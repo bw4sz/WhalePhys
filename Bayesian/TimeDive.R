@@ -75,7 +75,7 @@ cat("
     
     #for each dive depth
     #dive depth at time t
-    alpha_dive[i,g,t,u]<-depth_mu[state[i,g,t]] + beta[state[i,g,t]] * cos((2*pi*hours[i,g,t,u])/24) + beta2[state[i,g,t]] * sin((2*pi*hours[i,g,t,u])/24) 
+    alpha_dive[i,g,t,u]<-depth_mu[state[i,g,t]] + beta[state[i,g,t],i] * cos((2*pi*hours[i,g,t,u])/24) + beta2[state[i,g,t],i] * sin((2*pi*hours[i,g,t,u])/24) 
     divedepth[i,g,t,u] ~ dnorm(alpha_dive[i,g,t,u],depth_tau[state[i,g,t]])T(0.01,)
 
     #Assess Model Fit
@@ -84,7 +84,7 @@ cat("
     eval[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t]],depth_tau[state[i,g,t]])
     E[i,g,t,u]<-pow((divedepth[i,g,t,u]-eval[i,g,t,u]),2)/(eval[i,g,t,u])
     
-    alpha_dive_new[i,g,t,u]<-depth_mu[state[i,g,t]] + beta[state[i,g,t]] * cos((2*pi*hours[i,g,t,u])/24) + beta2[state[i,g,t]] * sin((2*pi*hours[i,g,t,u])/24) 
+    alpha_dive_new[i,g,t,u]<-depth_mu[state[i,g,t]] + beta[state[i,g,t],i] * cos((2*pi*hours[i,g,t,u])/24) + beta2[state[i,g,t],i] * sin((2*pi*hours[i,g,t,u])/24) 
     dive_new[i,g,t,u] ~ dnorm(alpha_dive_new[i,g,t,u],depth_tau[state[i,g,t]])T(0.01,)
     Enew[i,g,t,u]<-pow((dive_new[i,g,t,u]-eval[i,g,t,u]),2)/(eval[i,g,t,u])
     
@@ -140,15 +140,18 @@ cat("
     
     #depth and duration variance
     depth_tau[1] <- 0.01
-    depth_tau[2] <- 0.001
+    depth_tau[2] ~ dgamma(0.0001,0.0001)
     
+    #Diel Variation
+    for(x in 1:ind){
     #Cosine effect of time of day on depth
-    beta[1] <- 0
-    beta[2] ~ dnorm(0,0.0001)
+    beta[1,x] <- 0
+    beta[2,x] ~ dnorm(0,0.0001)
     
     #Sine effect of time of day on depth
-    beta2[1] <- 0
-    beta2[2] ~ dnorm(0,0.0001)
+    beta2[1,x] <- 0
+    beta2[2,x] ~ dnorm(0,0.0001)
+    }
 
     ##Argos priors##
     #longitudinal argos precision, from Jonsen 2005, 2016, represented as precision not sd
