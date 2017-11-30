@@ -9,7 +9,6 @@ output:
     theme: united
 ---
 
-
 # Foraging Model
 
 The proportion of time an animal is in a feeding behavioral state.
@@ -329,7 +328,7 @@ mdat %>% group_by(Animal) %>% summarize(Tracks=length(unique(Track)))
 ###################################################
 #filter by two whales for the moment
 #mdat<-mdat %>% filter(Animal %in% c("131127","131136","131132","131133","154187","131134","131115","131111","131130","131116"))
-mdat<-mdat %>% filter(Animal %in% c("131111","131115","131116","154187","131134","131128","131130"))
+mdat<-mdat %>% filter(Animal %in% c("131132"))
 
 #remake map
 troy<-makemap(mdat)
@@ -380,14 +379,12 @@ maxdive[!is.finite(maxdive)]<-NA
 ```
 
 
-```{r,child="Bayesian/TimeDive.R",eval=T}
+```{r,child="Bayesian/NestedDive.R",eval=T}
 ```
 
 ```{r,eval=T}
 #source jags file
-source("Bayesian/TimeDive.R")
-
-#writeLines(readLines("Bayesian/TimeDive.R"))
+source("Bayesian/NestedDive.R")
 
 #prior cov shape
 R <- diag(c(1,1))
@@ -400,10 +397,10 @@ stage_init[]<-1
 InitStage <- function() {list(stage=array(data=2,dim=c(dim(hours))))}
 
 #paramters to track
-pt<-c("alpha","gamma","depth_mu","depth_tau","dive_new","state","E","Enew","beta","beta2")
+pt<-c("alpha","gamma","depth_mu","depth_tau","dive_new","state", "sub_state","E","Enew")
 
 if(newModel){
-  system.time(diving<-jags.parallel(model.file = "Bayesian/TimeDive.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=20000,n.burnin=19000,n.thin=2,DIC=FALSE,inits = InitStage))
+  system.time(diving<-jags.parallel(model.file = "Bayesian/NestedDive.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=1000,n.burnin=900,n.thin=2,DIC=FALSE,inits = InitStage))
   }
 
 ```
@@ -422,22 +419,22 @@ pc_dive$parameter<-data.frame(str_match(pc_dive$par,"(\\w+)"))[,-1]
 splitpc<-split(pc_dive,pc_dive$parameter)
 
 #single index
-splitpc[c("alpha","gamma","depth_mu","depth_tau")]<-lapply(splitpc[c("alpha","gamma","depth_mu","depth_tau")],function(x){
+splitpc[c("alpha","gamma")]<-lapply(splitpc[c("alpha","gamma")],function(x){
     sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+)]"))[,3]
     pc<-data.frame(x,Behavior=sv)
     return(pc)
 }) 
 
 #double index
-splitpc[c("beta","beta2")]<-lapply(splitpc[c("beta","beta2")],function(x){
+splitpc[c("depth_mu","depth_tau")]<-lapply(splitpc[c("depth_mu","depth_tau")],function(x){
     sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+),(\\d+)"))[,3:4]
-    colnames(sv)<-c("Behavior","jAnimal")
+    colnames(sv)<-c("Behavior","sub_state")
     pc<-data.frame(x,sv)
     return(pc)
 }) 
 
 #3 index
-splitpc[c("state")]<-lapply(splitpc[c("state")],function(x){
+splitpc[c("state","sub_state")]<-lapply(splitpc[c("state","sub_state")],function(x){
     sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+),(\\d+),(\\d+)"))[,3:5]
     colnames(sv)<-c("jAnimal","Track","step")
     pc<-data.frame(x,sv)
@@ -457,12 +454,12 @@ splitpc[c("dive_new","E","Enew")]<-lapply(splitpc[c("dive_new","E","Enew")],func
 pc_dive<-bind_rows(splitpc)
 rm(splitpc)
 
-ggplot(pc_dive[!pc_dive$parameter %in% c("dive_new","state","E","Enew","eval","argos"),],aes(x=Draw,y=value,col=as.factor(chain))) + geom_line() + facet_wrap(~par,scales="free")
+ggplot(pc_dive[!pc_dive$parameter %in% c("dive_new","state","E","Enew","eval","sub_state"),],aes(x=Draw,y=value,col=as.factor(chain))) + geom_line() + facet_wrap(~par,scales="free")
 #posteriors
-ggplot(pc_dive[!pc_dive$parameter %in% c("dive_new","state","E","Enew","eval","argos"),],aes(x=value,fill=as.factor(chain))) + geom_histogram() + facet_wrap(~par,scales="free")
+ggplot(pc_dive[!pc_dive$parameter %in% c("dive_new","state","E","Enew","eval","sub_state"),],aes(x=value,fill=as.factor(chain))) + geom_histogram() + facet_wrap(~par,scales="free")
 
 #sum table
-pc_dive %>% filter(!parameter %in% c("dive_new","state","E","Enew","eval","argos")) %>% group_by(parameter,Behavior) %>% summarize(mean=round(mean(value),3),upper=round(quantile(value,0.95),3),lower=round(quantile(value,0.05),3)) 
+pc_dive %>% filter(!parameter %in% c("dive_new","state","E","Enew","eval","sub_state")) %>% group_by(parameter,Behavior) %>% summarize(mean=round(mean(value),3),upper=round(quantile(value,0.95),3),lower=round(quantile(value,0.05),3)) 
 
 #Animal lookup table
 pc_dive<-mdat %>% ungroup() %>%  dplyr::select(Animal,jAnimal)  %>% distinct() %>% mutate(jAnimal=as.factor(jAnimal)) %>% full_join(pc_dive)
@@ -483,10 +480,13 @@ mdat$Animal<-as.factor(mdat$Animal)
 mdat$Track<-as.factor(mdat$Track)
 mdat$step<-as.factor(mdat$step)
 
-state_est<-pc_dive %>% group_by(jAnimal,Track,step) %>%  filter(parameter=="state") %>% summarize(Behavior=Mode(value)) %>% ungroup()  %>% mutate(jAnimal=as.numeric(as.character(jAnimal)),Track=as.numeric(as.character(Track)),step=as.numeric(as.character(step))) %>% inner_join(mdat)
+state_est<-pc_dive %>% group_by(jAnimal,Track,step,parameter) %>%  filter(parameter %in% c("state","sub_state")) %>% summarize(Behavior=Mode(value)) %>% ungroup()  %>% mutate(jAnimal=as.numeric(as.character(jAnimal)),Track=as.numeric(as.character(Track)),step=as.numeric(as.character(step))) %>% spread(parameter,Behavior) 
 
-state_est[state_est$Behavior==1,"Behavior"]<-"Traveling"
-state_est[state_est$Behavior==2,"Behavior"]<-"Foraging"
+state_est %>% group_by(state,sub_state) %>% summarize(n=n())
+state_est<-state_est %>% inner_join(mdat)
+
+blookup<-data.frame(state=c(1,1,2,2),sub_state=c(1,2,1,2),Behavior=c("Traveling","Dummy","Foraging","Resting"))
+state_est<-state_est %>% inner_join(blookup)
 ```
 
 ```{r,fig.height=15,fig.width=12}
@@ -498,11 +498,36 @@ ggsave("Figures/TemporalBehavior.jpeg",height=8,width=12)
 ## Simulate dive depths
 
 ```{r}
+#how many of each state to draw?
+statecount<-state_est %>% group_by(Behavior) %>% filter(is.na(Latitude)) %>% summarize(n=length(jStep))
+
+pred_dives<-list()
+for(x in 1:nrow(statecount)){
+  state_index<-blookup[ blookup$Behavior %in% statecount$Behavior[x],"state"]
+  sub_state_index<-blookup[ blookup$Behavior %in%  statecount$Behavior[x],"sub_state"]
+
+  depth_tau<-pc_dive %>% filter(parameter %in% c("depth_tau"),Behavior==state_index,sub_state==sub_state_index)
+  depth_mu<-pc_dive %>% filter(parameter %in% c("depth_mu"),Behavior==state_index,sub_state==sub_state_index)
+
+  travel_dives<-data.frame(DepthMax=rtruncnorm(n=as.numeric(statecount[x,"n"]),mean=depth_mu$value,sd=1/sqrt(depth_tau$value),a=0),Behavior=statecount[x,"Behavior"])
+  pred_dives[[x]]<-travel_dives
+}
+
+pred_dives<-bind_rows(pred_dives)
+
+ggplot(pred_dives)  + geom_histogram(data=mdat,aes(x=DepthMax*1000),col="black")+ geom_histogram(alpha=0.8,aes(x=DepthMax*1000,fill=Behavior))  + theme_bw() + labs(x="Dive Depth (m)")
+ggsave("Figures/DiveHist.jpg",height=4,width=7)
+
+ggplot(pc_dive[pc_dive$parameter=="dive_new",])+  geom_density(aes(x=value*1000),col='red') + geom_density(data=mdat,aes(x=DepthMax*1000),col="black",size=1.5) + theme_bw() + labs(x="Dive Depth (m)") 
+ggsave("Figures/DivePredict.jpg",height=4,width=7) 
+```
+
+```{r,fig.height=12,fig.width=12,eval=F}
 #Behavior lookup
 blookup<-data.frame(Behavior=c("Traveling","Foraging"),Index=c(1,2))
 
 #how many of each state to draw?
-statecount<-state_est %>% group_by(Animal,Behavior) %>% filter(is.na(Latitude)) %>% summarize(n=length(jStep))
+statecount<-state_est %>% group_by(Animal,Behavior) %>% filter(is.na(Latitude),Behavior=="Foraging") %>% summarize(n=length(jStep))
 
 pred_dives<-list()
 pred_depths<-list()
@@ -518,9 +543,9 @@ for(i in 1:nrow(statecount)){
   #Fit dive depths
   for(x in 1:length(depth_mu)){
     #get 100 replicates from that draw
-    divedraws<-lapply(1:100,function(k){
-            dive_intercept<-rtruncnorm(n=1,mean=depth_mu$value[x],sd=1/sqrt(depth_tau$value[x]),a=0)
-       DepthMax<-dive_intercept  + beta$value[x]* cos((2*pi*unique(mdat$LocalHour))/(24)) + beta2$value[x] * sin((2*pi*unique(mdat$LocalHour))/24)
+    divedraws<-lapply(1:1000,function(k){
+      dive_mean<-depth_mu$value[x]  + beta$value[x]* cos((2*pi*unique(mdat$LocalHour))/(24)) + beta2$value[x] * sin((2*pi*unique(mdat$LocalHour))/24)
+      DepthMax<-rtruncnorm(n=1,mean=dive_mean,sd=sqrt(1/depth_tau$value[x]),a=0)
        return(data.frame(DepthMax,Hour=unique(mdat$LocalHour),Animal=statecount[i,"Animal"],Behavior=statecount[i,"Behavior"]))
     })
 

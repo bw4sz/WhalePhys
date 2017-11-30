@@ -76,7 +76,7 @@ cat("
     #for each dive depth
     #dive depth at time t
     alpha_dive[i,g,t,u]<-depth_mu[state[i,g,t]] + beta[state[i,g,t],i] * cos((2*pi*hours[i,g,t,u])/24) + beta2[state[i,g,t],i] * sin((2*pi*hours[i,g,t,u])/24) 
-    divedepth[i,g,t,u] ~ dnorm(alpha_dive[i,g,t,u],depth_tau[state[i,g,t]])T(0.01,)
+    divedepth[i,g,t,u] ~ dnorm(alpha_dive[i,g,t,u],depth_tau[state[i,g,t]])T(0,)
 
     #Assess Model Fit
     
@@ -85,7 +85,7 @@ cat("
     E[i,g,t,u]<-pow((divedepth[i,g,t,u]-eval[i,g,t,u]),2)/(eval[i,g,t,u])
     
     alpha_dive_new[i,g,t,u]<-depth_mu[state[i,g,t]] + beta[state[i,g,t],i] * cos((2*pi*hours[i,g,t,u])/24) + beta2[state[i,g,t],i] * sin((2*pi*hours[i,g,t,u])/24) 
-    dive_new[i,g,t,u] ~ dnorm(alpha_dive_new[i,g,t,u],depth_tau[state[i,g,t]])T(0.01,)
+    dive_new[i,g,t,u] ~ dnorm(alpha_dive_new[i,g,t,u],depth_tau[state[i,g,t]])T(0,)
     Enew[i,g,t,u]<-pow((dive_new[i,g,t,u]-eval[i,g,t,u]),2)/(eval[i,g,t,u])
     
     }
@@ -140,8 +140,9 @@ cat("
     
     #depth and duration variance
     depth_tau[1] <- 0.01
-    depth_tau[2] ~ dgamma(0.0001,0.0001)
-    
+    depth_sigma ~ dunif(0,100)
+    depth_tau[2] <- 1/pow(depth_sigma,2) 
+
     #Diel Variation
     for(x in 1:ind){
     #Cosine effect of time of day on depth
