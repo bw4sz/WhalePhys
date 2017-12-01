@@ -328,7 +328,7 @@ mdat %>% group_by(Animal) %>% summarize(Tracks=length(unique(Track)))
 ###################################################
 #filter by two whales for the moment
 #mdat<-mdat %>% filter(Animal %in% c("131127","131136","131132","131133","154187","131134","131115","131111","131130","131116"))
-mdat<-mdat %>% filter(Animal %in% c("131132","131115","131127"))
+mdat<-mdat %>% filter(Animal %in% c("131132","131115","131134","154187"))
 
 #remake map
 troy<-makemap(mdat)
@@ -400,7 +400,7 @@ InitStage <- function() {list(stage=array(data=2,dim=c(dim(hours))))}
 pt<-c("alpha","gamma","depth_mu","depth_tau","dive_new","state", "sub_state","E","Enew")
 
 if(newModel){
-  system.time(diving<-jags.parallel(model.file = "Bayesian/NestedDive.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10000,n.burnin=9000,n.thin=2,DIC=FALSE,inits = InitStage))
+  system.time(diving<-jags.parallel(model.file = "Bayesian/NestedDive.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=30000,n.burnin=29000,n.thin=2,DIC=FALSE,inits = InitStage))
   }
 
 ```
@@ -622,7 +622,7 @@ data=list(argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tracks,argos_clas
 pt<-c("alpha","gamma","state")
 
 if(newModel){
-  system.time(foraging<-jags.parallel(model.file = "Bayesian/Foraging.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10000,n.burnin=9000,n.thin=2,DIC=FALSE))
+  system.time(foraging<-jags.parallel(model.file = "Bayesian/Foraging.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=30000,n.burnin=29000,n.thin=2,DIC=FALSE))
   }
 
 ```
