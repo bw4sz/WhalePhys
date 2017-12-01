@@ -328,7 +328,7 @@ mdat %>% group_by(Animal) %>% summarize(Tracks=length(unique(Track)))
 ###################################################
 #filter by two whales for the moment
 #mdat<-mdat %>% filter(Animal %in% c("131127","131136","131132","131133","154187","131134","131115","131111","131130","131116"))
-mdat<-mdat %>% filter(Animal %in% c("131132"))
+mdat<-mdat %>% filter(Animal %in% c("131132","131115","131127"))
 
 #remake map
 troy<-makemap(mdat)
@@ -400,7 +400,7 @@ InitStage <- function() {list(stage=array(data=2,dim=c(dim(hours))))}
 pt<-c("alpha","gamma","depth_mu","depth_tau","dive_new","state", "sub_state","E","Enew")
 
 if(newModel){
-  system.time(diving<-jags.parallel(model.file = "Bayesian/NestedDive.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=1000,n.burnin=900,n.thin=2,DIC=FALSE,inits = InitStage))
+  system.time(diving<-jags.parallel(model.file = "Bayesian/NestedDive.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10000,n.burnin=9000,n.thin=2,DIC=FALSE,inits = InitStage))
   }
 
 ```
@@ -515,10 +515,10 @@ for(x in 1:nrow(statecount)){
 
 pred_dives<-bind_rows(pred_dives)
 
-ggplot(pred_dives)  + geom_histogram(data=mdat,aes(x=DepthMax*1000),col="black")+ geom_histogram(alpha=0.8,aes(x=DepthMax*1000,fill=Behavior))  + theme_bw() + labs(x="Dive Depth (m)")
+ggplot(pred_dives)  + geom_histogram(data=mdat,aes(x=DepthMax),col="black")+ geom_histogram(alpha=0.8,aes(x=DepthMax,fill=Behavior))  + theme_bw() + labs(x="Dive Depth (m)")
 ggsave("Figures/DiveHist.jpg",height=4,width=7)
 
-ggplot(pc_dive[pc_dive$parameter=="dive_new",])+  geom_density(aes(x=value*1000),col='red') + geom_density(data=mdat,aes(x=DepthMax*1000),col="black",size=1.5) + theme_bw() + labs(x="Dive Depth (m)") 
+ggplot(pc_dive[pc_dive$parameter=="dive_new",])+  geom_density(aes(x=value),col='red') + geom_density(data=mdat,aes(x=DepthMax),col="black",size=1.5) + theme_bw() + labs(x="Dive Depth (m)") 
 ggsave("Figures/DivePredict.jpg",height=4,width=7) 
 ```
 
@@ -622,7 +622,7 @@ data=list(argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tracks,argos_clas
 pt<-c("alpha","gamma","state")
 
 if(newModel){
-  system.time(foraging<-jags.parallel(model.file = "Bayesian/Foraging.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=20000,n.burnin=19000,n.thin=2,DIC=FALSE))
+  system.time(foraging<-jags.parallel(model.file = "Bayesian/Foraging.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10000,n.burnin=9000,n.thin=2,DIC=FALSE))
   }
 
 ```
@@ -696,6 +696,7 @@ ggsave("Figures/SpatialPred.jpg",height=4,width=7)
 Where does the 3d predict foraging that the 2d misses?
 
 ```{r}
+allmodels<- allmodels %>% dplyr::select(-c(sub_state,state)) 
 allmodels<-spread(allmodels,Model,Behavior)
 allmodels$Mismatch<-F
 allmodels[allmodels$`2D`=="Traveling" & allmodels$`3D` %in% c("Foraging"),"Mismatch"]<-TRUE
@@ -717,6 +718,8 @@ ggsave("Figures/Mismatch1.jpg",height=4,width=7)
 Where does the 2d predict foraging that the 3d refines to traveling?
 
 ```{r}
+allmodels<-allmodels %>% filter(!is.na(`3D`))
+
 allmodels$Mismatch<-F
 allmodels[allmodels$`2D`=="Foraging" & allmodels$`3D`=="Traveling","Mismatch"]<-TRUE
 

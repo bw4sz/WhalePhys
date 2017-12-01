@@ -139,13 +139,14 @@
     
     #Dive Priors
     #Foraging dives are deepest
-    depth_mu[2,1] ~ dnorm(100,0.0001)T(0,)
-    depth_sigma ~ dunif(0,100)
-    depth_tau[2,1] <- 1/pow(depth_sigma,2) 
+    depth_mu[2,1] ~ dnorm(100,0.001)T(0,)
+    depth_sigma[1] ~ dunif(0,50)
+    depth_tau[2,1] <- 1/pow(depth_sigma[1],2) 
 
     #Resting Dives
     depth_mu[2,2] ~ dnorm(20,0.01)T(0,)
-    depth_tau[2,2] <- 0.01
+    depth_sigma[2] ~ dunif(0,50)
+    depth_tau[2,2] <- 1/pow(depth_sigma[2],2) 
 
     #Traveling Dives
     depth_mu[1,1] <- 20
