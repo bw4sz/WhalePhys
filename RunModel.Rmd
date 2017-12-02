@@ -328,7 +328,7 @@ mdat %>% group_by(Animal) %>% summarize(Tracks=length(unique(Track)))
 ###################################################
 #filter by two whales for the moment
 #mdat<-mdat %>% filter(Animal %in% c("131127","131136","131132","131133","154187","131134","131115","131111","131130","131116"))
-mdat<-mdat %>% filter(Animal %in% c("131132","131115","131134","154187"))
+mdat<-mdat %>% filter(Animal %in% c("154187","131115","131116","131111","131134"))
 
 #remake map
 troy<-makemap(mdat)
@@ -397,10 +397,10 @@ stage_init[]<-1
 InitStage <- function() {list(stage=array(data=2,dim=c(dim(hours))))}
 
 #paramters to track
-pt<-c("alpha","gamma","depth_mu","depth_tau","dive_new","state", "sub_state","E","Enew")
+pt<-c("alpha","sub_alpha","gamma","depth_mu","depth_tau","dive_new","state", "sub_state","E","Enew")
 
 if(newModel){
-  system.time(diving<-jags.parallel(model.file = "Bayesian/NestedDive.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=30000,n.burnin=29000,n.thin=2,DIC=FALSE,inits = InitStage))
+  system.time(diving<-jags.parallel(model.file = "Bayesian/NestedDive.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=1000,n.burnin=900,n.thin=2,DIC=FALSE,inits = InitStage))
   }
 
 ```
@@ -419,7 +419,7 @@ pc_dive$parameter<-data.frame(str_match(pc_dive$par,"(\\w+)"))[,-1]
 splitpc<-split(pc_dive,pc_dive$parameter)
 
 #single index
-splitpc[c("alpha","gamma")]<-lapply(splitpc[c("alpha","gamma")],function(x){
+splitpc[c("sub_alpha","alpha","gamma")]<-lapply(splitpc[c("sub_alpha","alpha","gamma")],function(x){
     sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+)]"))[,3]
     pc<-data.frame(x,Behavior=sv)
     return(pc)
@@ -434,7 +434,7 @@ splitpc[c("depth_mu","depth_tau")]<-lapply(splitpc[c("depth_mu","depth_tau")],fu
 }) 
 
 #3 index
-splitpc[c("state","sub_state")]<-lapply(splitpc[c("state","sub_state")],function(x){
+splitpc[c("state")]<-lapply(splitpc[c("state")],function(x){
     sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+),(\\d+),(\\d+)"))[,3:5]
     colnames(sv)<-c("jAnimal","Track","step")
     pc<-data.frame(x,sv)
@@ -442,7 +442,7 @@ splitpc[c("state","sub_state")]<-lapply(splitpc[c("state","sub_state")],function
 }) 
 
 #4 index
-splitpc[c("dive_new","E","Enew")]<-lapply(splitpc[c("dive_new","E","Enew")],function(x){
+splitpc[c("dive_new","E","Enew","sub_state")]<-lapply(splitpc[c("dive_new","E","Enew","sub_state")],function(x){
     sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+),(\\d+),(\\d+),(\\d+)]"))[,3:6]
     colnames(sv)<-c("jAnimal","Track","step","jStep")
     pc<-data.frame(x,sv)
@@ -459,7 +459,7 @@ ggplot(pc_dive[!pc_dive$parameter %in% c("dive_new","state","E","Enew","eval","s
 ggplot(pc_dive[!pc_dive$parameter %in% c("dive_new","state","E","Enew","eval","sub_state"),],aes(x=value,fill=as.factor(chain))) + geom_histogram() + facet_wrap(~par,scales="free")
 
 #sum table
-pc_dive %>% filter(!parameter %in% c("dive_new","state","E","Enew","eval","sub_state")) %>% group_by(parameter,Behavior) %>% summarize(mean=round(mean(value),3),upper=round(quantile(value,0.95),3),lower=round(quantile(value,0.05),3)) 
+pc_dive %>% filter(!parameter %in% c("dive_new","state","E","Enew","eval","sub_state")) %>% group_by(parameter,Behavior,sub_state) %>% summarize(mean=round(mean(value),3),upper=round(quantile(value,0.95),3),lower=round(quantile(value,0.05),3)) 
 
 #Animal lookup table
 pc_dive<-mdat %>% ungroup() %>%  dplyr::select(Animal,jAnimal)  %>% distinct() %>% mutate(jAnimal=as.factor(jAnimal)) %>% full_join(pc_dive)
@@ -520,6 +520,10 @@ ggsave("Figures/DiveHist.jpg",height=4,width=7)
 
 ggplot(pc_dive[pc_dive$parameter=="dive_new",])+  geom_density(aes(x=value),col='red') + geom_density(data=mdat,aes(x=DepthMax),col="black",size=1.5) + theme_bw() + labs(x="Dive Depth (m)") 
 ggsave("Figures/DivePredict.jpg",height=4,width=7) 
+
+byanimal<-pc_dive[pc_dive$parameter=="dive_new",]
+ggplot(mdat)+  geom_density(aes(x=DepthMax),col="black",size=1.5) +  facet_wrap(~Animal,scales="free") + geom_density(data=byanimal,aes(x=value),col='red') + theme_bw() + labs(x="Dive Depth (m)")  
+
 ```
 
 ```{r,fig.height=12,fig.width=12,eval=F}
@@ -622,7 +626,7 @@ data=list(argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tracks,argos_clas
 pt<-c("alpha","gamma","state")
 
 if(newModel){
-  system.time(foraging<-jags.parallel(model.file = "Bayesian/Foraging.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=30000,n.burnin=29000,n.thin=2,DIC=FALSE))
+  system.time(foraging<-jags.parallel(model.file = "Bayesian/Foraging.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10000,n.burnin=9000,n.thin=2,DIC=FALSE))
   }
 
 ```
@@ -749,7 +753,22 @@ fitstat<-dcast(fitstat,Draw+chain~parameter,value.var="fit")
 ymin<-min(c(fitstat$E,fitstat$Enew)) - min(c(fitstat$E,fitstat$Enew)) * .1
 ymax<-max(c(fitstat$E,fitstat$Enew)) + max(c(fitstat$E,fitstat$Enew)) * .1
 ggplot(fitstat,aes(x=E,y=Enew)) + geom_point() + theme_bw() + labs(x="Discrepancy of observed data",y="Discrepancy of replicated data") + geom_abline() + coord_fixed() + ylim(ymin=ymin,ymax=ymax) + xlim(xmin=ymin,xmax=ymax)
+
+
 ggsave("Figures/PosteriorCheck.jpg",height = 4,width = 4)
+fitstat %>% group_by() %>% summarize(mean(E),var(Enew))
+
+#By Animal
+
+fitstat<-pc_dive %>% filter(parameter %in% c("E","Enew")) %>% group_by(parameter,Draw,chain,jAnimal) %>% summarize(fit=mean(value))
+
+fitstat<-dcast(fitstat,jAnimal+Draw+chain~parameter,value.var="fit")
+
+ymin<-min(c(fitstat$E,fitstat$Enew)) - min(c(fitstat$E,fitstat$Enew)) * .1
+ymax<-max(c(fitstat$E,fitstat$Enew)) + max(c(fitstat$E,fitstat$Enew)) * .1
+ggplot(fitstat,aes(x=E,y=Enew)) + geom_point() + theme_bw() + labs(x="Discrepancy of observed data",y="Discrepancy of replicated data") + geom_abline() + coord_fixed() + facet_wrap(~jAnimal,scale="free")
+
+ggsave("Figures/PosteriorCheckAnimal.jpg",height = 4,width = 4)
 fitstat %>% group_by() %>% summarize(mean(E),var(Enew))
 ```
 

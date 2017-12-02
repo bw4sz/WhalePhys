@@ -52,7 +52,6 @@ cat("
     #Gaussian Displacement in location
     y[i,g,t+1,1:2] ~ dmnorm(d[i,g,t,1:2],iSigma)
     
-    
     }
     
     #Final behavior state
