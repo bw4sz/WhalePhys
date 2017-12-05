@@ -120,8 +120,10 @@ dive<-dive %>% arrange(timestamp)
 ## Dive profiles per indidivuals
 
 ```{r,fig.height=11}
-ggplot(dive[,],aes(x=timestamp,y=-DepthMax)) + geom_point(size=0.1) + geom_line(size=0.1) + facet_wrap(~Animal,scales="free",ncol=3) + theme_bw()
-ggsave("Figures/perindividual.jpeg",height=6,width=12)
+ggplot(dive[,],aes(x=timestamp,y=DepthMax)) + geom_point(size=0.1) + geom_line(size=0.1) + facet_wrap(~Animal,scales="free",ncol=2) + theme_bw() + labs(x="Date",y="Dive Depth (m)") + scale_y_reverse()
+ggsave("Figures/perindividual.jpeg",height=12,width=13)
+ggsave("Figures/perindividual.svg",height=12,width=13)
+
 ```
 
 Dive Profiles with Argos timestamps
@@ -136,7 +138,7 @@ ggsave("Figures/perindividual.jpeg",height=6,width=12)
 
 mdat<-dive
 
-mybbox<-make_bbox(data=mdat,lat=Latitude,lon=Longitude,f=0.25)
+mybbox<-make_bbox(data=mdat,lat=Latitude,lon=Longitude,f=0.1)
 troy <- get_map(location = mybbox, maptype = "toner-background")
 
 attr_troy <- attr(troy, "bb")    # save attributes from original
@@ -151,7 +153,7 @@ attr(troy, "bb") <- attr_troy
 
 #nice to have it as a function
 makemap<-function(x){
-  mybbox<-make_bbox(data=x,lat=Latitude,lon=Longitude,f=0.25)
+  mybbox<-make_bbox(data=x,lat=Latitude,lon=Longitude,f=0.1)
 troy <- get_map(location = mybbox, maptype = "toner-background")
 
 attr_troy <- attr(troy, "bb")    # save attributes from original
@@ -174,7 +176,6 @@ mdat %>% group_by(Animal) %>% summarize(n=n(),argos=sum(!is.na(Latitude)),dive=s
 nrow(mdat)
 ```
 
-
 ```{r,fig.width=12,fig.height=10}
 #set max depth to km
 #mdat$DepthMax<-mdat$DepthMax/1000
@@ -189,9 +190,9 @@ mdat$LocalHour<-as.numeric(strftime(mdat$localtime,format="%H"))
 mdat$DurationMax<-mdat$DurationMax/60
 
 #view data
-ggmap(troy)+geom_path(data=mdat,aes(x=Longitude, y=Latitude,group=Animal),size=.5) + geom_point(data=mdat,aes(x=Longitude, y=Latitude,col=as.factor(Animal)),size=0.1) + theme_bw() + mytheme
+ggmap(troy) + geom_point(data=mdat,aes(x=Longitude, y=Latitude,col=as.factor(Animal)),size=0.3)  + mytheme + labs(col="Animal")
 ggsave("Figures/Map.svg")
-ggsave("Figures/Map.png")
+ggsave("Figures/Map.png",height=6,width=8)
 
 ```
 
@@ -328,7 +329,7 @@ ggplot(mdat[,],aes(x=timestamp,y=-DepthMax)) + geom_point(size=0.1) + geom_line(
 ###################################################
 #filter by two whales for the moment
 #mdat<-mdat %>% filter(Animal %in% c("131127","131136","131132","131133","154187","131134","131115","131111","131130","131116"))
-mdat<-mdat %>% filter(Animal %in% c("131132","131130","131115","131116","154187","131133"))
+mdat<-mdat %>% filter(Animal %in% c("131132","131130","131115","131116"))
 
 #remake map
 troy<-makemap(mdat)
@@ -399,7 +400,7 @@ InitStage <- function() {list(stage=array(data=2,dim=c(dim(hours))))}
 pt<-c("alpha","sub_alpha","gamma","depth_mu","depth_tau","dive_new","state", "sub_state","E","Enew")
 
 if(newModel){
-  system.time(diving<-jags.parallel(model.file = "Bayesian/NestedDive.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10000,n.burnin=9500,n.thin=2,DIC=FALSE,inits = InitStage))
+  system.time(diving<-jags.parallel(model.file = "Bayesian/NestedDive.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=5000,n.burnin=4900,n.thin=2,DIC=FALSE,inits = InitStage))
   }
 
 ```
@@ -490,9 +491,9 @@ state_est<-state_est %>% inner_join(blookup)
 ```
 
 ```{r,fig.height=13,fig.width=20}
-ggplot(state_est %>% filter(!is.na(DepthMax)),aes(x=timestamp,y=-DepthMax,col=Behavior,group=Track)) + geom_point() + geom_line(size=0.25,aes(group=Track)) + facet_wrap(~Animal,scales="free",ncol=1) + theme_bw()
+ggplot(state_est %>% filter(!is.na(DepthMax)),aes(x=timestamp,y=DepthMax,col=Behavior,group=Track)) + geom_point() + geom_line(size=0.1,aes(group=Track)) + facet_wrap(~Animal,scales="free",ncol=1) + theme_bw() + scale_y_reverse() + labs(x="Date",y="Dive Depth (m)")
 ggsave("Figures/TemporalBehavior.svg")
-ggsave("Figures/TemporalBehavior.jpeg",height=8,width=12)
+ggsave("Figures/TemporalBehavior.jpeg",height=7,width=10)
 ```
 
 Grouped by stage
@@ -586,7 +587,7 @@ data=list(argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tracks,argos_clas
 pt<-c("alpha","gamma","state")
 
 if(newModel){
-  system.time(foraging<-jags.parallel(model.file = "Bayesian/Foraging.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10000,n.burnin=9000,n.thin=2,DIC=FALSE))
+  system.time(foraging<-jags.parallel(model.file = "Bayesian/Foraging.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10000,n.burnin=9900,n.thin=2,DIC=FALSE))
   }
 
 ```

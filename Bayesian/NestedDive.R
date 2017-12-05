@@ -38,7 +38,6 @@ cat("
     phi[i,g,t,1] <- alpha[state[i,g,t-1]] 
     phi[i,g,t,2] <- 1-phi[i,g,t,1]
     state[i,g,t] ~ dcat(phi[i,g,t,])
-    
 
     #Turning covariate
     #Transition Matrix for turning angles
