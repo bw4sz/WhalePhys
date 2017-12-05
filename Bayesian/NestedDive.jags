@@ -52,14 +52,12 @@
     #Gaussian Displacement in location
     y[i,g,t+1,1:2] ~ dmnorm(d[i,g,t,1:2],iSigma)
     
-    
     }
     
     #Final behavior state
     phi[i,g,steps[i,g],1] <- alpha[state[i,g,steps[i,g]-1]] 
     phi[i,g,steps[i,g],2] <- 1-phi[i,g,steps[i,g],1]
     state[i,g,steps[i,g]] ~ dcat(phi[i,g,steps[i,g],])
-
 
     ##	Measurement equation - irregular observations
     # loops over regular time intervals (t)    
@@ -138,17 +136,18 @@
     #Dive Priors
     #Foraging dives
     depth_mu[2,1]  ~ dunif(50,250)
-    depth_sigma[1] ~  dunif(0,100)
+    depth_sigma[1] ~  dunif(0,80)
     depth_tau[2,1] <- 1/pow(depth_sigma[1],2) 
 
     #Resting Dives
-    depth_mu[2,2] <- 20
-    depth_sigma[2] ~ dunif(0,10)
+    depth_mu[2,2] ~ dunif(0,30)
+    depth_sigma[2] ~ dunif(0,20)
     depth_tau[2,2] <- 1/pow(depth_sigma[2],2) 
 
     #Traveling Dives
-    depth_mu[1,1] ~ dunif(0,30)
-    depth_tau[1,1] <- 0.1
+    depth_mu[1,1] ~ dunif(0,100)
+    depth_sigma[3] ~ dunif(0,30)
+    depth_tau[1,1] <- 1/pow(depth_sigma[3],2) 
 
     #Dummy traveling substate
     depth_mu[1,2]<-0
