@@ -125,8 +125,9 @@ cat("
     
     ##Behavioral States
     
-    gamma[1] ~ dbeta(4,2)
-    gamma[2] ~ dbeta(2,5)	
+    gamma[1] ~ dbeta(5,2)		## gamma for state 1
+    dev ~ dunif(0.3,1)			## a random deviate to ensure that gamma[1] > gamma[2]
+    gamma[2] <- gamma[1] * dev
     
     #Transition Intercepts
     alpha[1] ~ dbeta(1,1)
@@ -153,7 +154,7 @@ cat("
 
     #Traveling Dives
     depth_mu[1,1] ~ dunif(0,100)
-    depth_sigma[3] ~ dunif(0,40)
+    depth_sigma[3] ~ dunif(0,30)
     depth_tau[1,1] <- 1/pow(depth_sigma[3],2) 
 
     #Dummy traveling substate

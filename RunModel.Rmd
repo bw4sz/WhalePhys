@@ -292,18 +292,18 @@ timed<-function(d,step_length){
   d<-d %>% arrange(timestamp)
   startpoint<-min(which(!is.na(d$Latitude)))
   d<-d[startpoint:nrow(d),]
-  d$interval <- cut(d$timestamp,breaks = seq(min(d$timestamp), max(d$timestamp), as.difftime(step_length, units="hours")))
+  d$interval <- cut(d$timestamp,breaks = seq(min(d$timestamp), max(d$timestamp)+step_length*3600, as.difftime(step_length, units="hours")))
   
   #If there are no argos observations, remove interval.
   remove_interval<-d %>% group_by(interval) %>% summarize(n=sum(!is.na(Latitude))) %>% filter(n==0)
   d<-d %>% filter(!interval %in% remove_interval$interval )
   
-  #Can we have empty argos intervals?
-  d<-d %>% filter(!is.na(interval)) %>% droplevels()
-  
   #No empty dive intervals
-  remove_dive<-d %>% group_by(interval) %>% summarize(n=sum(!is.na(DepthMax))) %>% filter(!n==0)
-  d<-d %>% filter(!interval %in% remove_dive$interval )
+  #remove_dive<-d %>% group_by(interval) %>% summarize(n=sum(!is.na(DepthMax))) %>% filter(n==0)
+  #d<-d %>% filter(!interval %in% remove_dive$interval )
+  
+  #Can we have emptyintervals?
+  d<-d %>% filter(!is.na(interval)) %>% droplevels()
   
   #which intervals are more than 12 hours apart
   Track=c()
@@ -351,7 +351,7 @@ ggplot(mdat[,],aes(x=timestamp,y=-DepthMax)) + geom_point(size=0.1) + geom_line(
 ###################################################
 #filter by two whales for the moment
 #mdat<-mdat %>% filter(Animal %in% c("131127","131136","131132","131133","154187","131134","131115","131111","131130","131116"))
-mdat<-mdat %>% filter(Animal %in% c("131132","131130","131115","131116","131111","154187"))
+mdat<-mdat %>% filter(Animal %in% c("131132","131130","131115","131116","131111","154187","131128","131132"))
 
 #remake map
 troy<-makemap(mdat)
@@ -422,7 +422,7 @@ InitStage <- function() {list(stage=array(data=2,dim=c(dim(hours))))}
 pt<-c("alpha","sub_alpha","gamma","depth_mu","depth_tau","dive_new","state", "sub_state","E","Enew")
 
 if(newModel){
-  system.time(diving<-jags.parallel(model.file = "Bayesian/NestedDive.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10000,n.burnin=9500,n.thin=2,DIC=FALSE,inits = InitStage))
+  system.time(diving<-jags.parallel(model.file = "Bayesian/NestedDive.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=15000,n.burnin=14800,n.thin=2,DIC=FALSE,inits = InitStage))
   }
 
 ```
@@ -617,10 +617,6 @@ ggplot(byhour,aes(x=LocalHour,y=prop,col=Behavior)) + geom_line()  + geom_point(
 
 Lines connect individuals
 ```{r}
-byhourall<-state_est %>% group_by(LocalHour,Month,Behavior) %>% summarize(n=n()) %>% mutate(prop=n/sum(n))
-byhourall$Month<-factor(byhourall$Month,levels=month.name)
-ggplot(byhourall,aes(x=LocalHour,y=prop,col=Behavior)) + geom_line()  + geom_point() + theme_bw() + scale_y_continuous("Frequency of Behavior",labels=scales::percent)
-
 byhour<-state_est %>% group_by(LocalHour,Behavior) %>% summarize(n=n()) %>% mutate(prop=n/sum(n))
 ggplot(byhour,aes(x=LocalHour,y=prop,col=Behavior)) + geom_line()  + geom_point() + theme_bw() + scale_y_continuous("Frequency of Behavior",labels=scales::percent) 
 ```
@@ -632,6 +628,7 @@ Lines connect individuals
 bymonth<-state_est %>% group_by(Animal,Month,Behavior) %>% summarize(n=n()) %>% mutate(prop=n/sum(n)) %>% filter(!is.na(Month)) %>% filter(Behavior %in% c("Foraging","Resting"))
 bymonth$Month<-factor(bymonth$Month,levels=month.name)
 ggplot(bymonth,aes(x=Month,y=prop,col=Behavior)) + geom_line(aes(group=paste(Animal,Behavior)))  + geom_point() + theme_bw() + scale_y_continuous("Frequency of Behavior",labels=scales::percent)
+ggplot(bymonth,aes(x=Month,y=prop,fill=Behavior)) + geom_boxplot() + theme_bw() + scale_y_continuous("Frequency of Behavior",labels=scales::percent)
 ```
 
 ## Posterior Checks
