@@ -60,9 +60,22 @@
 
     ##	Measurement equation - irregular observations
     # loops over regular time intervals (t)    
-    
+
     for(t in 2:steps[i,g]){
     
+    #first substate
+    sub_state[i,g,t,1] ~ dcat(sub_lambda[state[i,g,t]])
+
+    # loops over observed dive within interval t
+
+    for(u in 2:idx[i,g,t]){ 
+
+    #Substate, resting or foraging dives?
+    sub_phi[i,g,t,u,1] <- sub_alpha[state[i,g,t],sub_state[i,g,t,u-1]] 
+    sub_phi[i,g,t,u,2] <- 1-sub_phi[i,g,t,u,1]
+    sub_state[i,g,t,u] ~ dcat(sub_phi[i,g,t,u,])
+    }
+
     # loops over observed locations within interval t
     for(u in 1:idx[i,g,t]){ 
     zhat[i,g,t,u,1:2] <- (1-j[i,g,t,u]) * y[i,g,t-1,1:2] + j[i,g,t,u] * y[i,g,t,1:2]
@@ -71,12 +84,6 @@
     #argos error
     argos[i,g,t,u,1:2] ~ dmnorm(zhat[i,g,t,u,1:2],argos_prec[argos_class[i,g,t,u],1:2,1:2])
     
-    #Substate, resting or foraging dives?
-    #TODO autocorrelation on a per dive basis
-    sub_phi[i,g,t,u,1] <- sub_alpha[state[i,g,t]] 
-    sub_phi[i,g,t,u,2] <- 1-sub_phi[i,g,t,u,1]
-    sub_state[i,g,t,u] ~ dcat(sub_phi[i,g,t,u,])
-
     #for each dive depth
     #dive depth at time t
     divedepth[i,g,t,u] ~ dnorm(depth_mu[state[i,g,t],sub_state[i,g,t,u]],depth_tau[state[i,g,t],sub_state[i,g,t,u]])T(0,)
@@ -117,12 +124,9 @@
     
     ##Behavioral States
     
-    #gamma[1] ~ dbeta(5,2)		## gamma for state 1
-    #dev ~ dunif(0.3,1)			## a random deviate to ensure that gamma[1] > gamma[2]
-    #gamma[2] <- gamma[1] * dev
-    
-    gamma[1] <- 0.7
-    gamma[2] <- 0.2
+    gamma[1] ~ dbeta(5,2)		## gamma for state 1
+    dev ~ dunif(0.2,1)			## a random deviate to ensure that gamma[1] > gamma[2]
+    gamma[2] <- gamma[1] * dev
     
     #Transition Intercepts
     alpha[1] ~ dbeta(1,1)
@@ -132,6 +136,10 @@
     lambda[1] ~ dbeta(1,1)
     lambda[2] <- 1 - lambda[1]
     
+    #Probability of init subbehavior switching 
+    sub_lambda[1] ~ dbeta(1,1)
+    sub_lambda[2] <- 1 - lambda[1]
+
     #Dive Priors
     #Foraging dives
     depth_mu[2,1]  ~ dunif(50,250)
@@ -154,12 +162,14 @@
 
     #Sub states
     #Traveling has no substate
-    sub_alpha[1]<-1 
-    
+    sub_alpha[1,1]<-1 
+    sub_alpha[1,2]<-0
+
     #ARS has two substates, foraging and resting
     #Foraging probability
-    sub_alpha[2] ~ dbeta(1,1)
-    
+    sub_alpha[2,1] ~ dbeta(1,1)
+    sub_alpha[2,2] ~ dbeta(1,1)
+
     ##Argos priors##
     #longitudinal argos precision, from Jonsen 2005, 2016, represented as precision not sd
     

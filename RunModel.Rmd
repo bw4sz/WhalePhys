@@ -133,6 +133,19 @@ ggplot(dive[,],aes(x=timestamp,y=-DepthMax)) + geom_point(size=0.1) + geom_line(
 ggsave("Figures/perindividual.jpeg",height=6,width=12)
 ```
 
+Dive autocorrelation plots
+
+```{r}
+acf_df<-function(x){
+  bacf <- acf(x, plot = FALSE)
+  bacfdf <- with(bacf, data.frame(lag, acf))
+}
+acplot<-dive %>% group_by(Animal) %>% arrange(timestamp) %>% filter(!is.na(DepthMax)) %>% do(acf_df(.$DepthMax))
+q <- ggplot(data = acplot, mapping = aes(x = lag, y = acf)) +
+       geom_hline(aes(yintercept = 0)) +
+       geom_segment(mapping = aes(xend = lag, yend = 0))
+q + facet_wrap(~Animal)
+```
 
 ```{r}
 
@@ -329,7 +342,7 @@ ggplot(mdat[,],aes(x=timestamp,y=-DepthMax)) + geom_point(size=0.1) + geom_line(
 ###################################################
 #filter by two whales for the moment
 #mdat<-mdat %>% filter(Animal %in% c("131127","131136","131132","131133","154187","131134","131115","131111","131130","131116"))
-mdat<-mdat %>% filter(Animal %in% c("131132","131130","131115","131116"))
+mdat<-mdat %>% filter(Animal %in% c("131132","131130","131115","131116","131111","154187"))
 
 #remake map
 troy<-makemap(mdat)
@@ -400,7 +413,7 @@ InitStage <- function() {list(stage=array(data=2,dim=c(dim(hours))))}
 pt<-c("alpha","sub_alpha","gamma","depth_mu","depth_tau","dive_new","state", "sub_state","E","Enew")
 
 if(newModel){
-  system.time(diving<-jags.parallel(model.file = "Bayesian/NestedDive.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=5000,n.burnin=4900,n.thin=2,DIC=FALSE,inits = InitStage))
+  system.time(diving<-jags.parallel(model.file = "Bayesian/NestedDive.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10000,n.burnin=9500,n.thin=2,DIC=FALSE,inits = InitStage))
   }
 
 ```
@@ -419,14 +432,14 @@ pc_dive$parameter<-data.frame(str_match(pc_dive$par,"(\\w+)"))[,-1]
 splitpc<-split(pc_dive,pc_dive$parameter)
 
 #single index
-splitpc[c("sub_alpha","alpha","gamma")]<-lapply(splitpc[c("sub_alpha","alpha","gamma")],function(x){
+splitpc[c("alpha","gamma")]<-lapply(splitpc[c("alpha","gamma")],function(x){
     sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+)]"))[,3]
     pc<-data.frame(x,Behavior=sv)
     return(pc)
 }) 
 
 #double index
-splitpc[c("depth_mu","depth_tau")]<-lapply(splitpc[c("depth_mu","depth_tau")],function(x){
+splitpc[c("depth_mu","depth_tau","sub_alpha")]<-lapply(splitpc[c("depth_mu","depth_tau","sub_alpha")],function(x){
     sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+),(\\d+)"))[,3:4]
     colnames(sv)<-c("Behavior","sub_state")
     pc<-data.frame(x,sv)
@@ -561,7 +574,7 @@ ggsave("Figures/Month.svg")
 ggsave("Figures/Month.png",height=5,width=8,unit="in")
 ```
 
-# Raw Argos Data
+# Spatial Prediction
 
 ```{r,fig.height=10,fig.width=10}
 state_est<-state_est %>% arrange(Animal,Track,timestamp)
@@ -569,135 +582,37 @@ ggmap(troy) +geom_path(data=state_est %>% filter(!is.na(Latitude)),aes(x=Longitu
 
 ggmap(troy) +geom_path(data=state_est %>% filter(!is.na(Latitude)),aes(x=Longitude, y=Latitude,group=paste(Animal,Track)),size=0.5) + geom_point(data=state_est,aes(x=Longitude, y=Latitude,col=Behavior),size=0.5) + mytheme +facet_wrap(~Animal)
 
+#Show nested behaviors
+state_est$TopLayer<-NA
+state_est[state_est$state==1,"TopLayer"]<-"Traveling"
+state_est[state_est$state==2,"TopLayer"]<-"Area-restricted Search"
+state_est$SecondLayer<-state_est$Behavior
+state_est<-gather(state_est,key="Layer",value="estimate",TopLayer:SecondLayer)
+
+state_est$Layer<-factor(state_est$Layer,levels = c("TopLayer","SecondLayer"),labels=c("Top Layer","Second Layer"))
+ggmap(troy) +geom_path(data=state_est %>% filter(!is.na(Latitude)),aes(x=Longitude, y=Latitude,group=paste(Animal,Track)),size=0.5) + geom_point(data=state_est,aes(x=Longitude, y=Latitude,col=estimate),size=0.5) + mytheme +facet_wrap(~Layer) + scale_color_manual(values=c("plum","Red","Green","Blue")) + labs(col="Behavior")
+ggsave("Figures/NestedMap.jpeg",height=8,width=11)
 ```
 
-# Comparison with 2d movement model
-
-* Movement model
-
-```{r,eval=T}
-#source jags file
-source("Bayesian/Foraging.R")
-
-#prior cov shape
-R <- diag(c(1,1))
-data=list(argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tracks,argos_class=obs_class)
-
-#paramters to track
-pt<-c("alpha","gamma","state")
-
-if(newModel){
-  system.time(foraging<-jags.parallel(model.file = "Bayesian/Foraging.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10000,n.burnin=9900,n.thin=2,DIC=FALSE))
-  }
-
-```
-
-##Chains
-
-```{r,eval=T}
-#bind chains
-pc_dive2d<-reshape2::melt(foraging$BUGSoutput$sims.array)
-colnames(pc_dive2d)<-c("Draw","chain","par","value")
-
-#extract parameter name
-pc_dive2d$parameter<-data.frame(str_match(pc_dive2d$par,"(\\w+)"))[,-1]
-
-#Extract index
-splitpc<-split(pc_dive2d,pc_dive2d$parameter)
-
-#single index
-splitpc[c("alpha")]<-lapply(splitpc[c("alpha")],function(x){
-    sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+)]"))[,3]
-    pc<-data.frame(x,Behavior=sv)
-    return(pc)
-}) 
-
-#3 index
-splitpc[c("state")]<-lapply(splitpc[c("state")],function(x){
-    sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+),(\\d+),(\\d+)"))[,3:5]
-    colnames(sv)<-c("Animal","Track","step")
-    pc<-data.frame(x,sv)
-    return(pc)
-}) 
-
-#bind all matrices back together
-pc_dive2d<-bind_rows(splitpc)
-rm(splitpc)
-
-ggplot(pc_dive2d[!pc_dive2d$parameter %in% c("state"),],aes(x=Draw,y=value,col=as.factor(chain))) + geom_line() + facet_wrap(~par,scales="free")
-```
+#Residual Explorations
+##Diel
 
 ```{r}
-
-#Take the most common estimate of behavior
-Mode <- function(x) {
-  ux <- unique(x)
-  ux[which.max(tabulate(match(x, ux)))]
-}
-
-#Combine posterior summary
-mdat$Animal<-as.factor(mdat$Animal)
-mdat$Track<-as.factor(mdat$Track)
-mdat$step<-as.factor(mdat$step)
-
-state_est2d<-pc_dive2d %>% group_by(jAnimal=Animal,Track,step) %>% filter(parameter=="state") %>% summarize(Behavior =Mode(value)) %>% ungroup()  %>% mutate(jAnimal=as.numeric(as.character(jAnimal)),Track=as.numeric(as.character(Track)),step=as.numeric(as.character(step))) %>% inner_join(mdat)
-
-state_est2d[state_est2d$Behavior==1,"Behavior"]<-"Traveling"
-state_est2d[state_est2d$Behavior==2,"Behavior"]<-"Foraging"
-
-state_est$Model<-"3D"
-state_est2d$Model<-"2D"
-
-allmodels<-bind_rows(state_est,state_est2d)
-
-allmodels<-allmodels %>% arrange(Model,Animal,Track,step,jStep) %>% filter(!is.na(Longitude))
+ggplot(state_est,aes(x=LocalHour,y=DepthMax,col=Behavior)) + geom_smooth(method = "gam", formula = y ~ s(x, k = 5)) + facet_wrap(~Animal)
 ```
 
-```{r}
-ggmap(troy) +geom_path(data=allmodels,aes(x=Longitude, y=Latitude,group=paste(Animal,Track),col=Behavior),size=0.5) + geom_point(data=allmodels,aes(x=Longitude, y=Latitude,group=1,col=Behavior),size=0.3) + mytheme + facet_wrap(~Model)
-ggsave("Figures/SpatialPred.jpg",height=4,width=7)
+```{r,fig.height=12}
+byhour<-state_est %>% group_by(Animal,LocalHour,Behavior) %>% summarize(n=n()) %>% mutate(prop=n/sum(n))
+ggplot(byhour,aes(x=LocalHour,y=prop,col=Behavior)) + geom_line()  + geom_point() + facet_wrap(~Animal,scales="free",ncol=1) + theme_bw() + scale_y_continuous(labels=scales::percent)
 ```
 
-Where does the 3d predict foraging that the 2d misses?
+## Monthly
 
+Lines connect individuals
 ```{r}
-allmodels<- allmodels %>% dplyr::select(-c(sub_state,state)) 
-allmodels<-spread(allmodels,Model,Behavior)
-allmodels$Mismatch<-F
-allmodels[allmodels$`2D`=="Traveling" & allmodels$`3D` %in% c("Foraging"),"Mismatch"]<-TRUE
-
-ggmap(troy)+geom_path(data=allmodels,aes(x=Longitude, y=Latitude,group=paste(Animal,Track)),size=.25) + geom_point(data=allmodels,aes(x=Longitude, y=Latitude,col=Mismatch)) + theme_bw() + mytheme + scale_color_manual(values=c("Black","Red"))
-ggsave("Figures/Mismatch1.jpg",height=4,width=7)
-```
-
-Where does the 3d predict resting that the 2d misses?
-
-```{r}
-allmodels$Mismatch<-F
-allmodels[allmodels$`2D`=="Traveling" & allmodels$`3D` %in% c("Resting"),"Mismatch"]<-TRUE
-
-ggmap(troy)+geom_path(data=allmodels,aes(x=Longitude, y=Latitude,group=paste(Animal,Track)),size=.25) + geom_point(data=allmodels,aes(x=Longitude, y=Latitude,col=Mismatch)) + theme_bw() + mytheme + scale_color_manual(values=c("Black","Red"))
-ggsave("Figures/Mismatch1.jpg",height=4,width=7)
-```
-
-Where does the 2d predict foraging that the 3d refines to traveling?
-
-```{r}
-allmodels<-allmodels %>% filter(!is.na(`3D`))
-
-allmodels$Mismatch<-F
-allmodels[allmodels$`2D`=="Foraging" & allmodels$`3D`=="Traveling","Mismatch"]<-TRUE
-
-ggmap(troy) +geom_path(data=allmodels,aes(x=Longitude, y=Latitude,group=paste(Animal,Track)),size=.25) + geom_point(data=allmodels,aes(x=Longitude, y=Latitude,col=Mismatch)) + mytheme + scale_color_manual(values=c("Black","Red"))
-ggsave("Figures/Mismatch2.jpg",height=4,width=7)
-```
-
-Where does the 2d predict foraging that the 3d refines to resting?
-
-```{r}
-allmodels$Mismatch<-F
-allmodels[allmodels$`2D`=="Foraging" & allmodels$`3D`=="Resting","Mismatch"]<-TRUE
-ggsave("Figures/Mismatch2.jpg",height=4,width=7)
+bymonth<-state_est %>% group_by(Animal,Month,Behavior) %>% summarize(n=n()) %>% mutate(prop=n/sum(n)) %>% filter(!is.na(Month)) %>% filter(Behavior %in% c("Foraging","Resting"))
+bymonth$Month<-factor(bymonth$Month,levels=month.name)
+ggplot(bymonth,aes(x=Month,y=prop,col=Behavior)) + geom_line(aes(group=paste(Animal,Behavior)))  + geom_point() + theme_bw() + scale_y_continuous("Frequency of Behavior",labels=scales::percent)
 ```
 
 ## Posterior Checks

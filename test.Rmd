@@ -1,0 +1,72 @@
+---
+title: "MomentuHMM practice"
+output: 
+  html_document:
+      toc: true
+      number_sections: true
+
+---
+
+```{r}
+library(momentuHMM)
+library(rgdal)
+URL <- paste0("https://www.datarepository.movebank.org/bitstream/handle/",
+"10255/move.373/Elliptical%20Time-Density%20Model%20%28Wall%",
+"20et%20al.%202014%29%20African%20Elephant%20Dataset%20%",
+"28Source-Save%20the%20Elephants%29.csv")
+rawData <- read.csv(url(URL))
+```
+# select and rename relevant columns
+Only keep first track
+```{r}
+rawData <- rawData[,c(11,3,4,5,6)]
+colnames(rawData) <- c("ID","time","lon","lat","temp")
+rawData <- subset(rawData,ID==unique(ID)[1])
+head(rawData)
+```
+
+```{r}
+# convert times from factors to POSIX
+rawData$time <- as.POSIXct(rawData$time,tz="GMT")
+# project to UTM coordinates using package rgdal
+llcoord <- SpatialPoints(rawData[,3:4],
+proj4string=CRS("+proj=longlat +datum=WGS84"))
+utmcoord <- spTransform(llcoord,CRS("+proj=utm +zone=30 ellps=WGS84"))
+# add UTM locations to data frame
+rawData$x <- attr(utmcoord,"coords")[,1]
+rawData$y <- attr(utmcoord,"coords")[,2]
+```
+
+```{r}
+# initial parameters for crawl fit
+inits <- list(a = c(rawData$x[1],0,rawData$y[1],0),
+P = diag(c(5000^2, 10*3600^2, 5000^2, 10*3600^2)))
+# fit crawl model
+crwOut <- crawlWrap(obsData=rawData, timeStep="hour", initial.state=inits,
+theta=c(4,-10), fixPar=c(NA,NA))
+```
+
+```{r}
+elephantData <- prepData(data=crwOut, covNames="temp")
+elephantData$hour <- as.integer(strftime(elephantData$time, format = "%H", tz="GMT"))
+acf(elephantData$step[!is.na(elephantData$step)],lag.max=300)
+```
+
+```{r}
+stateNames <- c("encamped","exploratory")
+dist = list(step = "gamma", angle = "wrpcauchy")
+Par0_m1 <- list(step=c(100,500,100,200),angle=c(0.3,0.7))
+m1 <- fitHMM(data = elephantData, nbStates = 2, dist = dist, Par0 = Par0_m1,
+estAngleMean = list(angle=FALSE), stateNames = stateNames)
+plot(m1)
+```
+
+```{r}
+formula <- ~ temp * cosinor(hour, period = 24)
+Par0_m2 <- getPar0(model=m1, formula=formula)
+m2 <- fitHMM(data = elephantData, nbStates = 2, dist = dist, Par0 = Par0_m2$Par,
+beta0=Par0_m2$beta, stateNames = stateNames, formula=formula)
+plot(m2)
+```
+
+
