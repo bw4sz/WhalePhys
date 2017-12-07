@@ -110,8 +110,14 @@ dat$Year<-years(dat$timestamp)
 gdat<-gdat %>% filter(Ptt %in% unique(dat$Ptt))  
 
 gdat<-gdat %>% dplyr::select(Animal=Ptt,timestamp,Quality,Latitude,Longitude)
+gdat$Month<-months(gdat$timestamp)
+gdat$Month<-factor(gdat$Month,levels=month.name)
+
 dive<-dat %>% filter(What=="Dive")%>% dplyr::select(Animal=Ptt,timestamp,Hour,Month,Year,DepthMax,DepthMin,DurationMax,DurationMin)
 dive<-bind_rows(gdat,dive)
+
+#
+
 
 #order by timestamp
 dive<-dive %>% arrange(timestamp)
@@ -123,7 +129,6 @@ dive<-dive %>% arrange(timestamp)
 ggplot(dive[,],aes(x=timestamp,y=DepthMax)) + geom_point(size=0.1) + geom_line(size=0.1) + facet_wrap(~Animal,scales="free",ncol=2) + theme_bw() + labs(x="Date",y="Dive Depth (m)") + scale_y_reverse()
 ggsave("Figures/perindividual.jpeg",height=12,width=13)
 ggsave("Figures/perindividual.svg",height=12,width=13)
-
 ```
 
 Dive Profiles with Argos timestamps
@@ -275,7 +280,7 @@ shinyApp(ui = ui, server = server)
 ```{r}
 
 ##Time is the beginning of the first point.
-step_length=8
+step_length=6
 
 sxy<-split(mdat,mdat$Animal)
 
@@ -295,6 +300,10 @@ timed<-function(d,step_length){
   
   #Can we have empty argos intervals?
   d<-d %>% filter(!is.na(interval)) %>% droplevels()
+  
+  #No empty dive intervals
+  remove_dive<-d %>% group_by(interval) %>% summarize(n=sum(!is.na(DepthMax))) %>% filter(!n==0)
+  d<-d %>% filter(!interval %in% remove_dive$interval )
   
   #which intervals are more than 12 hours apart
   Track=c()
@@ -558,11 +567,11 @@ ggplot(mdat)+  geom_density(aes(x=DepthMax),col="black",size=1.5) +  facet_wrap(
 ## Diel
 
 ```{r}
-ggplot(data=state_est) + geom_boxplot(aes(x=as.factor(LocalHour),y=DepthMax,fill=Behavior)) + ylab("Maximum Dive Depth (km)")+ labs(x="Hour (Local GMT+3)")
+ggplot(data=state_est) + geom_boxplot(aes(x=as.factor(LocalHour),y=DepthMax,fill=Behavior)) + ylab("Dive Depth (m)")+ labs(x="Hour (Local GMT+3)")
 ggsave("Figures/Diel.svg")
 ggsave("Figures/Diel.png",height=5,width=8,unit="in")
 
-ggplot(data=state_est) + geom_boxplot(aes(x=as.factor(LocalHour),y=DepthMax,fill=Behavior)) + ylab("Maximum Dive Depth (km)") + facet_wrap(~Month) + labs(x="Hour (Local GMT+3)")
+ggplot(data=state_est) + geom_boxplot(aes(x=as.factor(LocalHour),y=DepthMax,fill=Behavior)) + ylab("Dive Depth (m)") + facet_wrap(~Month) + labs(x="Hour (Local GMT+3)")
 ggsave("Figures/DielbyMonth.svg")
 ggsave("Figures/DielbyMonth.png",height=5,width=10,unit="in")
 ```
@@ -604,6 +613,16 @@ ggplot(state_est,aes(x=LocalHour,y=DepthMax,col=Behavior)) + geom_smooth(method 
 ```{r,fig.height=12}
 byhour<-state_est %>% group_by(Animal,LocalHour,Behavior) %>% summarize(n=n()) %>% mutate(prop=n/sum(n))
 ggplot(byhour,aes(x=LocalHour,y=prop,col=Behavior)) + geom_line()  + geom_point() + facet_wrap(~Animal,scales="free",ncol=1) + theme_bw() + scale_y_continuous(labels=scales::percent)
+```
+
+Lines connect individuals
+```{r}
+byhourall<-state_est %>% group_by(LocalHour,Month,Behavior) %>% summarize(n=n()) %>% mutate(prop=n/sum(n))
+byhourall$Month<-factor(byhourall$Month,levels=month.name)
+ggplot(byhourall,aes(x=LocalHour,y=prop,col=Behavior)) + geom_line()  + geom_point() + theme_bw() + scale_y_continuous("Frequency of Behavior",labels=scales::percent)
+
+byhour<-state_est %>% group_by(LocalHour,Behavior) %>% summarize(n=n()) %>% mutate(prop=n/sum(n))
+ggplot(byhour,aes(x=LocalHour,y=prop,col=Behavior)) + geom_line()  + geom_point() + theme_bw() + scale_y_continuous("Frequency of Behavior",labels=scales::percent) 
 ```
 
 ## Monthly
