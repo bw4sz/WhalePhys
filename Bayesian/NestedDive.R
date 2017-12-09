@@ -124,10 +124,9 @@ cat("
     #from jonsen 2016
     
     ##Behavioral States
-    
-    gamma[1] ~ dbeta(5,2)		## gamma for state 1
-    dev ~ dunif(0.3,1)			## a random deviate to ensure that gamma[1] > gamma[2]
-    gamma[2] <- gamma[1] * dev
+    #Movement autocorrelation
+    gamma[1] ~ dbeta(10,2)	
+    gamma[2] ~ dbeta(2,10)	
     
     #Transition Intercepts
     alpha[1] ~ dbeta(1,1)
@@ -144,7 +143,7 @@ cat("
     #Dive Priors
     #Foraging dives
     depth_mu[2,1]  ~ dunif(50,250)
-    depth_sigma[1] ~  dunif(0,80)
+    depth_sigma[1] ~  dunif(0,90)
     depth_tau[2,1] <- 1/pow(depth_sigma[1],2) 
 
     #Resting Dives
@@ -154,7 +153,7 @@ cat("
 
     #Traveling Dives
     depth_mu[1,1] ~ dunif(0,100)
-    depth_sigma[3] ~ dunif(0,30)
+    depth_sigma[3] ~ dunif(0,20)
     depth_tau[1,1] <- 1/pow(depth_sigma[3],2) 
 
     #Dummy traveling substate

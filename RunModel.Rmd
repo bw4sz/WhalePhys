@@ -299,8 +299,8 @@ timed<-function(d,step_length){
   d<-d %>% filter(!interval %in% remove_interval$interval )
   
   #No empty dive intervals
-  #remove_dive<-d %>% group_by(interval) %>% summarize(n=sum(!is.na(DepthMax))) %>% filter(n==0)
-  #d<-d %>% filter(!interval %in% remove_dive$interval )
+  remove_dive<-d %>% group_by(interval) %>% summarize(n=sum(!is.na(DepthMax))) %>% filter(n==0)
+  d<-d %>% filter(!interval %in% remove_dive$interval )
   
   #Can we have emptyintervals?
   d<-d %>% filter(!is.na(interval)) %>% droplevels()
@@ -351,7 +351,7 @@ ggplot(mdat[,],aes(x=timestamp,y=-DepthMax)) + geom_point(size=0.1) + geom_line(
 ###################################################
 #filter by two whales for the moment
 #mdat<-mdat %>% filter(Animal %in% c("131127","131136","131132","131133","154187","131134","131115","131111","131130","131116"))
-mdat<-mdat %>% filter(Animal %in% c("131132","131130","131115","131116","131111","154187","131128","131132"))
+mdat<-mdat %>% filter(Animal %in% c("131132","131130","131115","131116","131111","154187","131128","131132","131134","131136"))
 
 #remake map
 troy<-makemap(mdat)
@@ -422,7 +422,7 @@ InitStage <- function() {list(stage=array(data=2,dim=c(dim(hours))))}
 pt<-c("alpha","sub_alpha","gamma","depth_mu","depth_tau","dive_new","state", "sub_state","E","Enew")
 
 if(newModel){
-  system.time(diving<-jags.parallel(model.file = "Bayesian/NestedDive.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=15000,n.burnin=14800,n.thin=2,DIC=FALSE,inits = InitStage))
+  system.time(diving<-jags.parallel(model.file = "Bayesian/NestedDive.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=15000,n.burnin=14700,n.thin=2,DIC=FALSE,inits = InitStage))
   }
 
 ```
