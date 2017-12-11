@@ -95,7 +95,7 @@ b<-d[!is.na(d %over% cropoly)[,2],]
 gdat<-b@data
 
 #get dive data files
-f<-list.files("/Data/Humpback/",pattern="Behavior",full.names=T,recursive = T)
+f<-list.files("Data/Humpback/",pattern="Behavior",full.names=T,recursive = T)
 dat<-bind_rows(lapply(f,read.csv))
 
 dat$timestamp<-as.POSIXct(dat$End,format="%H:%M:%S %d-%b-%Y",tz="GMT")
