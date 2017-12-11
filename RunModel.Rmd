@@ -116,9 +116,6 @@ gdat$Month<-factor(gdat$Month,levels=month.name)
 dive<-dat %>% filter(What=="Dive")%>% dplyr::select(Animal=Ptt,timestamp,Hour,Month,Year,DepthMax,DepthMin,DurationMax,DurationMin)
 dive<-bind_rows(gdat,dive)
 
-#
-
-
 #order by timestamp
 dive<-dive %>% arrange(timestamp)
 ```
@@ -665,5 +662,5 @@ fitstat %>% group_by() %>% summarize(mean(E),var(Enew))
 ```
 
 ```{r}
-save.image("/Users/Ben/Dropbox/Whales/Dive/WhalePhys.RData")
+#save.image("/Users/Ben/Dropbox/Whales/Dive/WhalePhys.RData")
 ```
