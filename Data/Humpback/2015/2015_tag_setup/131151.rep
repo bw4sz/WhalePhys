@@ -1,0 +1,68 @@
+Report for SPOT tag 13S0757 on 10-Nov-2014 at 00:46:46 (UTC)
+
+SPOT Time: 10-Nov-2014 at 00:46:46
+Spot5Host version: 5.51.2000
+SPOT5ware version: 5.03d
+
+SPOT belongs to:
+Wildlife Computers
+8345 154th Ave NE
+Redmond, WA   98052   USA
++1-425-881-3048
+
+
+
+Extended Argos PTT number: 131151 or 0C33A3F2 Hex.  Uplink/LUT number: 12494/242
+  transmitting with fast repetition rate of 43.00 seconds
+  and slow repetition rate of 88.00 seconds.
+  It checks for dry (to start transmitting) every 1/4 seconds
+  The transmission will start after 0 extra consecutive dry 1/4-sec wakeups.
+  and switches to its slow repetition rate after 10 successive dry transmissions
+  Fast transmissions will resume after being continuously wet for 08 seconds.
+
+  The current conductivity threshold is: 50 (default)
+  The default conductivity threshold is: 50
+Total Transmits since 07-Nov-2013 = 410
+Maximum transmissions per day = 720
+
+Transmit on these hours:
+0 - 23
+Transmit on these days, using an absolute calendar:
+Jan: 1 - 31
+Feb: 1 - 28, 
+Mar: 1 - 31
+Apr: 1 - 30
+May: 1 - 31
+Jun: 1 - 30
+Jul: 1 - 31
+Aug: 1 - 31
+Sep: 1 - 30
+Oct: 1 - 31
+Nov: 1 - 30
+Dec: 1 - 31
+
+Time at temperature Histograms are not collected.
+
+
+Percent dry timelines are NOT being collected
+
+-------------------------------------------------------------------------------
+System Parameters:
+090D0B0D160A0D0B0D1600AC01603202
+004F0C33A3F205E805FF313353303735
+37000D0B0702D0019AFFFFFF000A0004
+3200000000AF01100149018501C30201
+023E02AB03040349037B0014000400C0
+7FFFFFFF0FFFFFFF7FFFFFFF3FFFFFFF
+7FFFFFFF3FFFFFFF7FFFFFFF7FFFFFFF
+3FFFFFFF7FFFFFFF3FFFFFFF7FFFFFFF
+57696C646C69666520436F6D70757465
+72730D0A383334352031353474682041
+7665204E450D0A5265646D6F6E642C20
+57412020203938303532202020555341
+0D0A2B312D3432352D3838312D333034
+380D0A0D0A0000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000073832024
+-------------------------------------------------------------------------------
+

@@ -70,7 +70,7 @@ if(!newModel){
 }
 
 #get gps data
-f<-list.files("/Users/Ben/Dropbox/Whales/Data/Humpback",pattern="Locations",full.names=T,recursive = T)
+f<-list.files("Data/Humpback",pattern="Locations",full.names=T,recursive = T)
 gdat<-lapply(f,function(x) read.csv(x,stringsAsFactors=F))
 gdat<-lapply(gdat,function(x){
   x$Quality<-as.character(x$Quality)
@@ -95,7 +95,7 @@ b<-d[!is.na(d %over% cropoly)[,2],]
 gdat<-b@data
 
 #get dive data files
-f<-list.files("/Users/Ben/Dropbox/Whales/Data/Humpback/",pattern="Behavior",full.names=T,recursive = T)
+f<-list.files("/Data/Humpback/",pattern="Behavior",full.names=T,recursive = T)
 dat<-bind_rows(lapply(f,read.csv))
 
 dat$timestamp<-as.POSIXct(dat$End,format="%H:%M:%S %d-%b-%Y",tz="GMT")
@@ -106,7 +106,6 @@ dat$Hour<-strftime(dat$timestamp,format="%H")
 dat$Year<-years(dat$timestamp)
 
 ### for testing
-#dat<-dat %>% filter(Ptt=="131134")
 gdat<-gdat %>% filter(Ptt %in% unique(dat$Ptt))  
 
 gdat<-gdat %>% dplyr::select(Animal=Ptt,timestamp,Quality,Latitude,Longitude)

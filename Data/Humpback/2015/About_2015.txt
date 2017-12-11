@@ -1,0 +1,9 @@
+#Folder:2015_tag_setup contains the program details of each Wildlife Computers tag. These tags are programmed with no duty cycle (continuous transmission).
+
+#Folder: 2015_argos_files contains all the text files that I manually downloaded from the Argos website. This file is described by Argos as PRV,DS format plus diagnosis information for the current day and previous nineteen days.See section 6.3.6 of the Argos manual for more details:http://www.argos-system.org/manual.
+Argos text files can be decoded in R to obtain the location and other tag information - the easiest option is to use the trip package.
+For Wildlife Computers tags, Argos text files can also be decoded using the DAP Processor in WC DAP:http://wildlifecomputers.com/wp-content/uploads/software/WC-DAP.msi
+
+#Folder: 2015_WC_DAP contains the output from decoding the Argos text files in WC DAP.
+
+#2015_deployment_info contains the deployment details that Ari provided.

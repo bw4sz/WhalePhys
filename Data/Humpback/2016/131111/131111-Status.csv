@@ -1,0 +1,10 @@
+DeployID,Ptt,DepthSensor,Instr,SW,RTC,Received,Time Offset,LocationQuality,Latitude,Longitude,Type,HauledOut,BrokenThermistor,BrokenLink,Transmits,BattVoltage,TransmitVoltage,TransmitCurrent,Temperature,Depth,MaxDepth,ZeroDepthOffset,LightLevel,NoDawnDusk,ReleaseType,ReleaseTime,InitiallyBroken,BurnMinutes,ReleaseDepth,FastGPSPower,TWICPower,PowerLimit,WetDry,MinWetDry,MaxWetDry,WetDryThreshold,StatusWord,TransmitPower,Resets,PreReleaseTilt,PreReleaseTiltSd,PreReleaseTiltCount,XmitQueue,FastGPSLocNumber,FastGPSFailures,BattDiscon
+"131111",131111,0.500000,Mk10,,12:19:10 23-Mar-2016,07:19:25 23-Mar-2016,-17984,B,-64.1150,-60.9620,CRC,0,0,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+"131111",131111,0.500000,Mk10,,,05:39:26 25-Mar-2016,,B,-64.1220,-60.9990,,0,0,,16877,3.184,,,111.40,,,,,,,,,,,,,,,,,,,,,,,,,,,
+"131111",131111,0.500000,Mk10,,14:44:22 25-Mar-2016,09:44:36 25-Mar-2016,-17985,B,-64.1140,-60.9830,CRC,0,0,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+"131111",131111,0.500000,Mk10,,17:36:46 25-Mar-2016,12:37:00 25-Mar-2016,-17985,B,-64.1200,-60.9050,CRC,0,0,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+"131111",131111,0.500000,Mk10,,03:37:19 26-Mar-2016,22:37:33 25-Mar-2016,-17985,0,-64.1000,-60.9900,CRC,0,0,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+"131111",131111,0.500000,Mk10,,08:29:20 26-Mar-2016,03:29:35 26-Mar-2016,-17984,A,-64.1150,-61.0200,CRC,0,0,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+"131111",131111,0.500000,Mk10,,15:24:04 26-Mar-2016,10:24:18 26-Mar-2016,-17985,1,-64.1020,-61.0070,CRC,0,0,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+"131111",131111,0.500000,Mk10,,12:10:01 27-Mar-2016,07:10:16 27-Mar-2016,-17984,2,-64.2050,-61.1380,CRC,0,0,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+"131111",131111,0.500000,Mk10,,15:09:29 27-Mar-2016,10:09:43 27-Mar-2016,-17985,2,-64.2800,-61.1890,CRC,0,0,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,

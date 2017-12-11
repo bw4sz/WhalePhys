@@ -1,0 +1,69 @@
+Report for SPOT tag 11S1135 on 30-Nov-2011 at 03:51:44 (UTC)
+
+SPOT Time: 30-Nov-2011 at 03:51:45
+Spot5Host version: 5.03.1000
+SPOT5ware version: 5.03d
+
+SPOT belongs to:
+Nick Gales
+Australian Antarctic Division
+
+
+
+
+
+Extended Argos PTT number: 112693 or 07EC145F Hex.  Uplink/LUT number: 8112/95
+  transmitting with fast repetition rate of 30.00 seconds
+  and slow repetition rate of 90.00 seconds.
+  The transmission will start after 0 extra consecutive dry 1/4-sec wakeups.
+  The current conductivity threshold is: 50 (default)
+  The default conductivity threshold is: 50
+  It checks for dry (to start transmitting) every 0.25 seconds
+  and switches to its slow repetition rate after never successive dry transmissions
+  Transmissions will suspended after being dry for never hours,
+  and resume after being wet for 08 seconds.
+
+Total Transmits since 04-Nov-2011 = 387
+Maximum transmissions per day = 720
+
+Transmit on these hours:
+0 - 3, 12 - 15, 
+Transmit on these days:
+Jan: 1 - 31
+Feb: 1 - 28, 
+Mar: 1 - 31
+Apr: 1 - 30, 
+May: 1 - 31
+Jun: 1 - 30, 
+Jul: 1 - 31
+Aug: 1 - 31
+Sep: 1 - 30, 
+Oct: 1 - 31
+Nov: 1 - 30, 
+Dec: 1 - 31
+
+Time at temperature Histograms are not collected.
+
+
+Haulout Statistics are NOT being collected
+
+-------------------------------------------------------------------------------
+System Parameters:
+0E0B0B12160F0B0B1216007801683201
+B83507EC145F05E805FF313153313133
+35000B0B0402D0018300F00F02000004
+3200000000AF01100149018501C30201
+023E02AB03040349037B0014000400C0
+7FFFFFFF0FFFFFFF7FFFFFFF3FFFFFFF
+7FFFFFFF3FFFFFFF7FFFFFFF7FFFFFFF
+3FFFFFFF7FFFFFFF3FFFFFFF7FFFFFFF
+4E69636B2047616C65730D0A41757374
+72616C69616E20416E74617263746963
+204469766973696F6E0D0A0D0A0D0A0D
+0A000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+0000000000000000000000007A8B3126
+-------------------------------------------------------------------------------
+

@@ -1,0 +1,10 @@
+#Folder:2013_tag_setup contains the program details of each Wildlife Computers tag. These tags seem to be programmed for 3 hours on/3hours off.
+#Note: in 2013, some Sirtrack tags were deployed. These are the tags with ptt numbers that begin with 113; i.e. 113206. These tags a programmed by the manufacturer to duty cycle at 6 hours on/6 hours off. 
+
+#Folder: 2013_argos_files contains all the text files that I manually downloaded from the Argos website. This file is described by Argos as PRV,DS format plus diagnosis information for the current day and previous nineteen days.See section 6.3.6 of the Argos manual for more details:http://www.argos-system.org/manual.
+Argos text files can be decoded in R to obtain the location and other tag information - the easiest option is to use the trip package.
+For Wildlife Computers tags, Argos text files can also be decoded using the DAP Processor in WC DAP:http://wildlifecomputers.com/wp-content/uploads/software/WC-DAP.msi
+
+#Folder: 2013_WC_DAP contains the output from decoding the Argos text files in WC DAP.
+
+#2013_deployment_info contains the deployment details that Ari provided. Note that this file contains the humpback and minke deployment details.

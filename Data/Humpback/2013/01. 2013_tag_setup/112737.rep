@@ -1,0 +1,69 @@
+Report for SPOT tag 12S0186 on 13-Nov-2012 at 04:13:23 (UTC)
+
+SPOT Time: 13-Nov-2012 at 04:14:16
+Spot5Host version: 5.50.2003
+SPOT5ware version: 5.03d
+
+SPOT belongs to:
+Sarah Laverick
+Australian Marine Mammal Centre
+Australia
+
+
+
+
+Extended Argos PTT number: 112737 or 07F16013 Hex.  Uplink/LUT number: 8133/19
+  transmitting with fast repetition rate of 30.50 seconds
+  and slow repetition rate of 90.50 seconds.
+  The transmission will start after 0 extra consecutive dry 1/4-sec wakeups.
+  The current conductivity threshold is: 50 (default)
+  The default conductivity threshold is: 50
+  It checks for dry (to start transmitting) every 0.25 seconds
+  and switches to its slow repetition rate after never successive dry transmissions
+  Transmissions will suspended after being dry for never hours,
+  and resume after being wet for 08 seconds.
+
+Total Transmits since 16-Apr-2012 = 226
+Maximum transmissions per day = 720
+
+Transmit on these hours:
+0, 1, 5 - 7, 11 - 13, 17 - 19, 23
+Transmit on these days, using an absolute calendar:
+Jan: 1 - 31
+Feb: 1 - 28, 
+Mar: 1 - 31
+Apr: 1 - 30
+May: 1 - 31
+Jun: 1 - 30
+Jul: 1 - 31
+Aug: 1 - 31
+Sep: 1 - 30
+Oct: 1 - 31
+Nov: 1 - 30
+Dec: 1 - 31
+
+Time at temperature Histograms are not collected.
+
+
+Haulout Statistics are NOT being collected
+
+-------------------------------------------------------------------------------
+System Parameters:
+220C05080E230C05080E007A016A3201
+B86107F1601305E805FF313253303138
+36000C041002D000E28E38E300000004
+3200000000AF01100149018501C30201
+023E02AB03040349037B0014000400C0
+7FFFFFFF0FFFFFFF7FFFFFFF3FFFFFFF
+7FFFFFFF3FFFFFFF7FFFFFFF7FFFFFFF
+3FFFFFFF7FFFFFFF3FFFFFFF7FFFFFFF
+5361726168204C6176657269636B0D0A
+4175737472616C69616E204D6172696E
+65204D616D6D616C2043656E7472650D
+0A4175737472616C69610D0A0D0A0D0A
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+0000000000000000000000005E6E2028
+-------------------------------------------------------------------------------
+
