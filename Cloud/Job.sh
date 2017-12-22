@@ -11,7 +11,7 @@ sudo docker run -it -v /home/ben/.ssh/:/root/.ssh/ gcr.io/api-project-7738893523
 
 #add git to known hosts?
 
-#clone
+#clonex
 git clone git@github.com:bw4sz/WhalePhys.git --depth 1
 
 cd WhalePhys
