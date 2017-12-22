@@ -9,6 +9,8 @@ chmod 400 ~/.ssh/id_rsa
 #run docker container and pass keys
 sudo docker run -it -v /home/ben/.ssh/:/root/.ssh/ gcr.io/api-project-773889352370/rwhales bin/bash 
 
+#add git to known hosts?
+
 #clone
 git clone git@github.com:bw4sz/WhalePhys.git --depth 1
 

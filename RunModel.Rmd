@@ -346,8 +346,8 @@ ggplot(mdat[,],aes(x=timestamp,y=-DepthMax)) + geom_point(size=0.1) + geom_line(
 ```{r}
 ###################################################
 #filter by two whales for the moment
-#mdat<-mdat %>% filter(Animal %in% c("131127","131136","131132","131133","154187","131134","131115","131111","131130","131116"))
-mdat<-mdat %>% filter(Animal %in% "131115")
+mdat<-mdat %>% filter(Animal %in% c("131127","131136","131132","131133","154187","131134","131115","131111","131130","131116"))
+#mdat<-mdat %>% filter(Animal %in% "131115")
 
 #remake map
 troy<-makemap(mdat)
