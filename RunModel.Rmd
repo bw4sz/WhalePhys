@@ -509,8 +509,8 @@ state_est<-state_est %>% inner_join(blookup)
 
 ```{r,fig.height=13,fig.width=20}
 ggplot(state_est %>% filter(!is.na(DepthMax)),aes(x=timestamp,y=DepthMax,col=Behavior,group=Track)) + geom_point() + geom_line(size=0.1,aes(group=Track)) + facet_wrap(~Animal,scales="free",ncol=1) + theme_bw() + scale_y_reverse() + labs(x="Date",y="Dive Depth (m)")
-ggsave("Figures/TemporalBehavior.svg")
-ggsave("Figures/TemporalBehavior.jpeg",height=7,width=10)
+ggsave("Figures/TemporalBehavior.svg",height=12,width=10)
+ggsave("Figures/TemporalBehavior.jpeg",height=12,width=10)
 ```
 
 Grouped by stage
@@ -624,6 +624,8 @@ bymonth<-state_est %>% group_by(Animal,Month,Behavior) %>% summarize(n=n()) %>% 
 bymonth$Month<-factor(bymonth$Month,levels=month.name)
 ggplot(bymonth,aes(x=Month,y=prop,col=Behavior)) + geom_line(aes(group=paste(Animal,Behavior)))  + geom_point() + theme_bw() + scale_y_continuous("Frequency of Behavior",labels=scales::percent)
 ggplot(bymonth,aes(x=Month,y=prop,fill=Behavior)) + geom_boxplot() + theme_bw() + scale_y_continuous("Frequency of Behavior",labels=scales::percent)
+ggsave("Figures/MonthFreq.svg",height=6,width=9)
+ggsave("Figures/MonthFreq.png",height=6,width=9)
 ```
 
 ## Posterior Checks
