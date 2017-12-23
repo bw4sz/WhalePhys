@@ -122,7 +122,7 @@ mdat<-dive
 
 ## Dive profiles per indidivuals
 
-```{r,fig.height=11,eval=F}
+```{r,fig.height=11,eval=T}
 ggplot(dive[,],aes(x=timestamp,y=DepthMax)) + geom_point(size=0.1) + geom_line(size=0.1) + facet_wrap(~Animal,scales="free",ncol=2) + theme_bw() + labs(x="Date",y="Dive Depth (m)") + scale_y_reverse()
 ggsave("Figures/perindividual.jpeg",height=12,width=13)
 ggsave("Figures/perindividual.svg",height=12,width=13)
@@ -137,7 +137,7 @@ ggsave("Figures/perindividual.jpeg",height=6,width=12)
 
 Dive autocorrelation plots
 
-```{r,eval=F}
+```{r,eval=T}
 acf_df<-function(x){
   bacf <- acf(x, plot = FALSE)
   bacfdf <- with(bacf, data.frame(lag, acf))
@@ -149,7 +149,7 @@ q <- ggplot(data = acplot, mapping = aes(x = lag, y = acf)) +
 q + facet_wrap(~Animal)
 ```
 
-```{r,eval=F}
+```{r,eval=T}
 mybbox<-make_bbox(data=mdat,lat=Latitude,lon=Longitude,f=0.1)
 troy <- get_map(location = mybbox, maptype = "toner-background")
 
