@@ -117,11 +117,12 @@ dive<-bind_rows(gdat,dive)
 
 #order by timestamp
 dive<-dive %>% arrange(timestamp)
+mdat<-dive
 ```
 
 ## Dive profiles per indidivuals
 
-```{r,fig.height=11}
+```{r,fig.height=11,eval=F}
 ggplot(dive[,],aes(x=timestamp,y=DepthMax)) + geom_point(size=0.1) + geom_line(size=0.1) + facet_wrap(~Animal,scales="free",ncol=2) + theme_bw() + labs(x="Date",y="Dive Depth (m)") + scale_y_reverse()
 ggsave("Figures/perindividual.jpeg",height=12,width=13)
 ggsave("Figures/perindividual.svg",height=12,width=13)
@@ -129,14 +130,14 @@ ggsave("Figures/perindividual.svg",height=12,width=13)
 
 Dive Profiles with Argos timestamps
 
-```{r,fig.height=11}
+```{r,fig.height=11,eval=F}
 ggplot(dive[,],aes(x=timestamp,y=-DepthMax)) + geom_point(size=0.1) + geom_line(size=0.1) + facet_wrap(~Animal,scales="free",ncol=2) + theme_bw() + geom_point(data=dive[!is.na(dive$Latitude),],y=0,col="red",size=1,aes(x=timestamp))
 ggsave("Figures/perindividual.jpeg",height=6,width=12)
 ```
 
 Dive autocorrelation plots
 
-```{r}
+```{r,eval=F}
 acf_df<-function(x){
   bacf <- acf(x, plot = FALSE)
   bacfdf <- with(bacf, data.frame(lag, acf))
@@ -148,10 +149,7 @@ q <- ggplot(data = acplot, mapping = aes(x = lag, y = acf)) +
 q + facet_wrap(~Animal)
 ```
 
-```{r}
-
-mdat<-dive
-
+```{r,eval=F}
 mybbox<-make_bbox(data=mdat,lat=Latitude,lon=Longitude,f=0.1)
 troy <- get_map(location = mybbox, maptype = "toner-background")
 
@@ -298,7 +296,7 @@ timed<-function(d,step_length){
   remove_dive<-d %>% group_by(interval) %>% summarize(n=sum(!is.na(DepthMax))) %>% filter(n==0)
   d<-d %>% filter(!interval %in% remove_dive$interval )
   
-  #Can we have emptyintervals?
+  #Can we have empty intervals?
   d<-d %>% filter(!is.na(interval)) %>% droplevels()
   
   #which intervals are more than 12 hours apart
@@ -325,6 +323,10 @@ timed<-function(d,step_length){
   #set step and remove tracks less than 2 steps, a bit ugly to maintain subgroup order.
   d<-d %>% group_by(Track) %>% mutate(step=as.numeric(as.factor(as.character(interval)))) %>% filter(max(step) > 2)
   
+  #reset track numbering
+  #need more than 3 jSteps
+    #d<-d %>% group_by(Track,step) %>% filter(max(jStep) > 3)
+
   #remove tracks that are shorter than 12 hours
   track_time<-d %>% group_by(Track) %>% summarize(mt=difftime(max(as.POSIXct(timestamp)),min(as.POSIXct(timestamp)),units="hours")) %>% filter(mt>=12) %>% .$Track
   
@@ -333,6 +335,9 @@ timed<-function(d,step_length){
 
 sxy<-lapply(sxy,timed,step_length=step_length)
 mdat<-bind_rows(sxy)
+
+#recode tracks and steps to make ordinal
+mdat<-mdat %>% group_by(Animal) %>% mutate(Track=as.numeric(as.factor(Track)))
 ```
 
 ## Data after track cut
@@ -346,7 +351,7 @@ ggplot(mdat[,],aes(x=timestamp,y=-DepthMax)) + geom_point(size=0.1) + geom_line(
 ```{r}
 ###################################################
 #filter by two whales for the moment
-mdat<-mdat %>% filter(Animal %in% c("131127","131136","131132","131133","154187","131134","131115","131111","131130","131116"))
+#mdat<-mdat %>% filter(Animal %in% c("131132","131127"))
 #mdat<-mdat %>% filter(Animal %in% "131115")
 
 #remake map
@@ -418,7 +423,7 @@ InitStage <- function() {list(stage=array(data=2,dim=c(dim(hours))))}
 pt<-c("alpha","sub_alpha","gamma","depth_mu","depth_tau","dive_new","state", "sub_state","E","Enew")
 
 if(newModel){
-  system.time(diving<-jags.parallel(model.file = "Bayesian/NestedDive.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10000,n.burnin=9000,n.thin=2,DIC=FALSE,inits = InitStage))
+  system.time(diving<-jags.parallel(model.file = "Bayesian/NestedDive.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=100,n.burnin=0,n.thin=2,DIC=FALSE,inits = InitStage))
   }
 
 ```

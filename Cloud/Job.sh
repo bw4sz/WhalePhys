@@ -10,6 +10,7 @@ chmod 400 ~/.ssh/id_rsa
 sudo docker run -it -v /home/ben/.ssh/:/root/.ssh/ gcr.io/api-project-773889352370/rwhales bin/bash 
 
 #add git to known hosts?
+ssh-keyscan github.com >> ~/.ssh/known_hosts
 
 #clonex
 git clone git@github.com:bw4sz/WhalePhys.git --depth 1
