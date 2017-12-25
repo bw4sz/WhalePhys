@@ -7,7 +7,7 @@ gsutil cp -r gs://api-project-773889352370-ml/.ssh/id_rsa.pub ~/.ssh/
 chmod 400 ~/.ssh/id_rsa
 
 #get file to run
-gsutil cp -r gs://api-project-773889352370-ml/.ssh/id_rsa.pub ~/.ssh/
+gsutil cp gs://api-project-773889352370-ml/DockerJob.sh .
 
 #run docker container and pass keys
 sudo docker run -v /home/ben/.ssh/:/root/.ssh/ gcr.io/api-project-773889352370/rwhales DockerJob.sh
