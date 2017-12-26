@@ -7,3 +7,7 @@ RUN apt-get update
 RUN apt-get install --assume-yes jags git pandoc
 
 RUN install2.r -e  R2jags
+
+ADD DockerJob.sh /mnt/
+
+ENTRYPOINT /mnt/DockerJob.sh

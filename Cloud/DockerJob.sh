@@ -1,4 +1,4 @@
-#!/bin/bash     
+#!/bin/bash
 
 #add git to known hosts?
 ssh-keyscan github.com >> ~/.ssh/known_hosts
