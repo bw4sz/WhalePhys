@@ -9,5 +9,5 @@ chmod 400 /home/ben/.ssh/id_rsa
 #start docker container and pass keys
 sudo docker run -v /home/ben/.ssh/:/root/.ssh/ gcr.io/api-project-773889352370/rwhales
 
-#delete host
-#gcloud compute instances delete -q cloudml
+#Delete host
+sudo shutdown -h
