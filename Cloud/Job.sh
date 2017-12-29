@@ -10,4 +10,4 @@ chmod 400 /home/ben/.ssh/id_rsa
 sudo docker run -v /home/ben/.ssh/:/root/.ssh/ gcr.io/api-project-773889352370/rwhales
 
 #Delete host
-sudo shutdown -h
+#sudo shutdown now -h

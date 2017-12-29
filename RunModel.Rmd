@@ -351,7 +351,7 @@ ggplot(mdat[,],aes(x=timestamp,y=-DepthMax)) + geom_point(size=0.1) + geom_line(
 ```{r}
 ###################################################
 #filter by two whales for the moment
-mdat<-mdat %>% filter(!Animal %in% c("131132","131127"))
+#mdat<-mdat %>% filter(!Animal %in% c("131132","131127"))
 #mdat<-mdat %>% filter(Animal %in% "131115")
 
 #remake map
@@ -423,7 +423,7 @@ InitStage <- function() {list(stage=array(data=2,dim=c(dim(hours))))}
 pt<-c("alpha","sub_alpha","gamma","depth_mu","depth_tau","dive_new","state", "sub_state","E","Enew")
 
 if(newModel){
-  system.time(diving<-jags(model.file = "Bayesian/NestedDive.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10000,n.burnin=9500,n.thin=2,DIC=FALSE,inits = InitStage))
+ diving<-jags.parallel(model.file = "Bayesian/NestedDive.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=1000,n.burnin=950,n.thin=2,DIC=FALSE,inits = InitStage)
   }
 
 ```
