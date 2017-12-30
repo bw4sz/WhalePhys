@@ -423,7 +423,7 @@ InitStage <- function() {list(stage=array(data=2,dim=c(dim(hours))))}
 pt<-c("alpha","sub_alpha","gamma","depth_mu","depth_tau","state", "sub_state")
 
 if(newModel){
- diving<-jags.parallel(model.file = "Bayesian/NestedDive.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10,n.burnin=0,n.thin=2,DIC=FALSE,inits = InitStage)
+ diving<-jags.parallel(model.file = "Bayesian/NestedDive.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=5000,n.burnin=4500,n.thin=2,DIC=FALSE,inits = InitStage)
   }
 
 ```
