@@ -138,7 +138,7 @@ cat("
     
     #Probability of init subbehavior switching 
     sub_lambda[1] ~ dbeta(1,1)
-    sub_lambda[2] <- 1 - lambda[1]
+    sub_lambda[2] <- 1 - sub_lambda[1]
 
     #Dive Priors
     #Foraging dives

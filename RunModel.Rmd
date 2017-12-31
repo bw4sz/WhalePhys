@@ -351,7 +351,7 @@ ggplot(mdat[,],aes(x=timestamp,y=-DepthMax)) + geom_point(size=0.1) + geom_line(
 ```{r}
 ###################################################
 #filter by two whales for the moment
-#mdat<-mdat %>% filter(!Animal %in% c("131132","131127"))
+mdat<-mdat %>% filter(Animal %in% c("131132","131127"))
 #mdat<-mdat %>% filter(Animal %in% c("131115"))
 
 #remake map
@@ -423,7 +423,7 @@ InitStage <- function() {list(stage=array(data=2,dim=c(dim(hours))))}
 pt<-c("alpha","sub_alpha","gamma","depth_mu","depth_tau","state", "sub_state")
 
 if(newModel){
- diving<-jags.parallel(model.file = "Bayesian/NestedDive.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=5000,n.burnin=4500,n.thin=2,DIC=FALSE,inits = InitStage)
+ system.time(diving<-jags.parallel(model.file = "Bayesian/NestedDive.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=5000,n.burnin=4500,n.thin=2,DIC=FALSE,inits = InitStage))
   }
 
 ```
@@ -667,5 +667,5 @@ fitstat %>% group_by() %>% summarize(mean(E),var(Enew))
 ```
 
 ```{r}
-#save.image("/Users/Ben/Dropbox/Whales/Dive/WhalePhys.RData")
+save.image("/Users/Ben/Dropbox/Whales/Dive/WhalePhys.RData")
 ```
