@@ -1,0 +1,173 @@
+
+    model{
+    
+    pi <- 3.141592653589
+    
+    #for each if 6 argos class observation error
+    
+    for(x in 1:6){
+    
+    ##argos observation error##
+    argos_prec[x,1:2,1:2] <- argos_cov[x,,]
+    
+    #Constructing the covariance matrix
+    argos_cov[x,1,1] <- argos_sigma[x]
+    argos_cov[x,1,2] <- 0
+    argos_cov[x,2,1] <- 0
+    argos_cov[x,2,2] <- argos_alpha[x]
+    }
+    
+    #First movement and behavioral states
+    for(i in 1:ind){
+      for(g in 1:tracks[i]){
+
+        #First behavioral state
+        state[i,g,1] ~ dcat(lambda[]) 
+
+        #First location
+        y[animal[i],track[i],step[1],1:2] ~ dmnorm(first[i,g,1:2],argos_prec[1,1:2,1:2])
+    
+        #First movement - random walk.
+        y[animal[i],track[i],step[2],1:2] ~ dmnorm(y[animal[i],track[i],step[1],1:2],iSigma)
+
+        #First behavioral substate
+        for(t in 1:steps[i,g]){
+          sub_state[i,g,t,1] ~ dcat(sub_lambda[state[i,g,t]])
+        }
+      }
+    }
+
+    #Ragged index of observed locations and dives
+    for(i in 1:N){
+    
+    #Observed dive depth
+    divedepth[i] ~ dnorm(depth_mu[state[animal[i],track[i],step[i]],sub_state[animal[i],track[i],step[i],jStep[i]]],depth_tau[state[animal[i],track[i],step[i]],sub_state[animal[i],track[i],step[i],jStep[i]]])T(0,)
+    
+    #Observed location
+    ##	Measurement equation - irregular observations
+    argos[i,1:2] ~ dmnorm(zhat[i,1:2],argos_prec[argos_class[i],1:2,1:2])
+    
+    #Imputed true location based on straight line along step
+    zhat[i,1:2] <- (1-j[i]) * y[animal[i],track[i],step[i]-1,1:2] + j[i] * y[animal[i],track[i],step[i],1:2]
+    
+    #Correlation in movement change
+    d[i,1:2] <- y[animal[i],track[i],step[i],] + gamma[state[animal[i],track[i],step[i]]] * T[i,,] %*% (y[animal[i],track[i],step[i],1:2] - y[animal[i],track[i],step[i]-1,1:2])
+    
+    #Gaussian Displacement in location
+    y[animal[i],track[i],step[i]+1,1:2] ~ dmnorm(d[i,1:2],iSigma)
+    
+    #Turning covariate
+    #Transition Matrix for turning angles
+    T[i,1,1] <- cos(theta[state[animal[i],track[i],step[i]]])
+    T[i,1,2] <- (-sin(theta[state[animal[i],track[i],step[i]]]))
+    T[i,2,1] <- sin(theta[state[animal[i],track[i],step[i]]])
+    T[i,2,2] <- cos(theta[state[animal[i],track[i],step[i]]])
+    
+    #Behaviors
+    #Behavioral State at time T
+    phi[i,1] <- alpha[state[animal[i],track[i],step[i]-1]] 
+    phi[i,2] <- 1-phi[i,1]
+    state[animal[i],track[i],step[i]] ~ dcat(phi[i,])
+
+    #Substate, resting or foraging dives?
+    sub_phi[i,1] <- sub_alpha[state[animal[i],track[i],step[i]],sub_state[animal[i],track[i],step[i],jStep[i]-1]] 
+    sub_phi[i,2] <- 1-sub_phi[i,1]
+    sub_state[animal[i],track[i],step[i],jStep[i]] ~ dcat(sub_phi[i,])
+    
+    #Assess Model Fit
+    
+    #Fit dive discrepancy statistics - comment out for memory savings
+    #eval[i,g,t,u] ~ dnorm(depth_mu[state[animal[i],track[i],step[i]],sub_state[animal[i],track[i],step[i],jStep[i]]],depth_tau[state[animal[i],track[i],step[i]],sub_state[animal[i],track[i],step[i],jStep[i]]])T(0,)
+    #E[i,g,t,u]<-pow((divedepth[i,g,t,u]-eval[i,g,t,u]),2)/(eval[i,g,t,u])
+    
+    #dive_new[i,g,t,u] ~ dnorm(depth_mu[state[animal[i],track[i],step[i]],sub_state[animal[i],track[i],step[i],jStep[i]]],depth_tau[state[animal[i],track[i],step[i]],sub_state[animal[i],track[i],step[i],jStep[i]]])T(0,)
+    #Enew[i,g,t,u]<-pow((dive_new[i,g,t,u]-eval[i,g,t,u]),2)/(eval[i,g,t,u])
+    }
+
+    ###Priors###
+    
+    #Process Variance
+    iSigma ~ dwish(R,2)
+    Sigma <- inverse(iSigma)
+    
+    ##Mean Angle
+    tmp[1] ~ dbeta(10, 10)
+    tmp[2] ~ dbeta(10, 10)
+    
+    # prior for theta in 'traveling state'
+    theta[1] <- (2 * tmp[1] - 1) * pi
+    
+    # prior for theta in 'foraging state'    
+    theta[2] <- (tmp[2] * pi * 2)
+    
+    ##Move persistance
+    # prior for gamma (autocorrelation parameter)
+    #from jonsen 2016
+    
+    ##Behavioral States
+    #Movement autocorrelation
+    gamma[1] ~ dbeta(10,2)	
+    gamma[2] ~ dbeta(2,10)	
+    
+    #Transition Intercepts
+    alpha[1] ~ dbeta(1,1)
+    alpha[2] ~ dbeta(1,1)
+    
+    #Probability of init behavior switching 
+    lambda[1] ~ dbeta(1,1)
+    lambda[2] <- 1 - lambda[1]
+    
+    #Probability of init subbehavior switching 
+    sub_lambda[1] ~ dbeta(1,1)
+    sub_lambda[2] <- 1 - sub_lambda[1]
+    
+    #Dive Priors
+    #Foraging dives
+    depth_mu[2,1]  ~ dunif(50,250)
+    depth_sigma[1] ~  dunif(0,90)
+    depth_tau[2,1] <- 1/pow(depth_sigma[1],2) 
+    
+    #Resting Dives
+    depth_mu[2,2] ~ dunif(0,30)
+    depth_sigma[2] ~ dunif(0,20)
+    depth_tau[2,2] <- 1/pow(depth_sigma[2],2) 
+    
+    #Traveling Dives
+    depth_mu[1,1] ~ dunif(0,100)
+    depth_sigma[3] ~ dunif(0,20)
+    depth_tau[1,1] <- 1/pow(depth_sigma[3],2) 
+    
+    #Dummy traveling substate
+    depth_mu[1,2]<-0
+    depth_tau[1,2]<-0.01
+    
+    #Sub states
+    #Traveling has no substate
+    sub_alpha[1,1]<-1 
+    sub_alpha[1,2]<-0
+    
+    #ARS has two substates, foraging and resting
+    #Foraging probability
+    sub_alpha[2,1] ~ dbeta(1,1)
+    sub_alpha[2,2] ~ dbeta(1,1)
+    
+    ##Argos priors##
+    #longitudinal argos precision, from Jonsen 2005, 2016, represented as precision not sd
+    
+    #by argos class
+    argos_sigma[1] <- 11.9016
+    argos_sigma[2] <- 10.2775
+    argos_sigma[3] <- 1.228984
+    argos_sigma[4] <- 2.162593
+    argos_sigma[5] <- 3.885832
+    argos_sigma[6] <- 0.0565539
+    
+    #latitidunal argos precision, from Jonsen 2005, 2016
+    argos_alpha[1] <- 67.12537
+    argos_alpha[2] <- 14.73474
+    argos_alpha[3] <- 4.718973
+    argos_alpha[4] <- 0.3872023
+    argos_alpha[5] <- 3.836444
+    argos_alpha[6] <- 0.1081156
+    
+    }

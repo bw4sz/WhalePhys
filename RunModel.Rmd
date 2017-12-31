@@ -345,14 +345,13 @@ mdat<-mdat %>% group_by(Animal) %>% mutate(Track=as.numeric(as.factor(Track)))
 mdat %>% group_by(Animal) %>% summarize(n=n())
 mdat %>% group_by(Animal) %>% summarize(Tracks=length(unique(Track)))
 ggplot(mdat[,],aes(x=timestamp,y=-DepthMax)) + geom_point(size=0.1) + geom_line(size=0.1) + facet_wrap(~Animal,scales="free",ncol=2) + theme_bw() + geom_point(data=dive[!is.na(dive$Latitude),],y=0,col="red",size=1,aes(x=timestamp))
-
 ```
 
 ```{r}
 ###################################################
 #filter by two whales for the moment
-mdat<-mdat %>% filter(Animal %in% c("131132","131127"))
-#mdat<-mdat %>% filter(Animal %in% c("131115"))
+#mdat<-mdat %>% filter(Animal %in% c("131132","131127"))
+mdat<-mdat %>% filter(Animal %in% c("131115","131116"))
 
 #remake map
 troy<-makemap(mdat)
@@ -361,41 +360,41 @@ troy<-makemap(mdat)
 #refactor animal
 mdat$jAnimal<-as.numeric(as.factor(mdat$Animal))
 
+#unique track code
+mdat<-mdat %>% ungroup() %>% mutate(TrackID=as.numeric(as.factor(paste(Animal,Track,sep="_"))))
+
+```
+
+```{r}
 ##Split into format for JAGS
 #Cast time array
-j<-reshape2::acast(mdat,jAnimal~Track~step~jStep,value.var="j")
+j<-reshape2::acast(mdat,TrackID~step~jStep,value.var="j")
 
 #how many observations per individual in each step
-idx<-mdat %>% group_by(jAnimal,Track,step) %>% summarize(n=n())
-colnames(idx)<-c("Animal","Track","step","jStep")
-idx<-reshape2::acast(data=idx,Animal~Track~step)
+idx<-mdat %>% group_by(TrackID,step) %>% summarize(n=n())
+colnames(idx)<-c("Track","step","jStep")
+idx<-reshape2::acast(data=idx,Track~step)
 
-#Individuals
-ind=length(unique(mdat$Animal))
-
-#tracks per indivudal
-tracks<-mdat %>% group_by(Animal) %>% summarize(tracks=length(unique(Track))) %>% .$tracks
+#tracks
+tracks<-length(unique(mdat$TrackID))
 
 #steps per track
-steps_all<-mdat %>% group_by(Animal,Track) %>% summarize(n=length(unique(step)))
-steps<-reshape2::acast(steps_all,Animal~Track,value.var="n")
+steps<-mdat %>% group_by(TrackID) %>% summarize(n=length(unique(step))) %>% .$n
 
 #obs array
 obs<-reshape2::melt(mdat,measure.vars=c("Longitude","Latitude"))
-obs<-reshape2::acast(obs,Animal~Track~step~jStep~variable,fun.aggregate = mean)
+obs<-reshape2::acast(obs,TrackID~step~jStep~variable)
 obs[!is.finite(obs)]<-NA
 
 #argos class array
 mdat$argos.lc<-factor(mdat$Quality,levels=c(3,2,1,0,"A","B"))
 mdat$numargos<-as.numeric(mdat$argos.lc)
-obs_class<-reshape2::acast(mdat,Animal~Track~step~jStep,value.var="numargos",fun.aggregate = min)
+obs_class<-reshape2::acast(mdat,TrackID~step~jStep,value.var="numargos")
 #set interpolated observations to having lowest class of argos error
 obs_class[!is.finite(obs_class)]<-6
 
 #average dive depth array
-maxdive<-reshape2::acast(mdat,Animal~Track~step~jStep,value.var="DepthMax",fun.aggregate = mean)
-
-hours<-reshape2::acast(mdat,Animal~Track~step~jStep,value.var="LocalHour")
+maxdive<-reshape2::acast(mdat,TrackID~step~jStep,value.var="DepthMax")
 
 #fill the empty values
 maxdive[!is.finite(maxdive)]<-NA
@@ -407,23 +406,17 @@ maxdive[!is.finite(maxdive)]<-NA
 
 ```{r,eval=T}
 #source jags file
-source("Bayesian/NestedDive.R")
+source("Bayesian/NestedDiveRagged.R")
 
 #prior cov shape
 R <- diag(c(1,1))
-data=list(hours=hours,divedepth=maxdive,argos=obs,steps=steps,R=R,ind=ind,j=j,idx=idx,tracks=tracks,argos_class=obs_class)
-
-#Inits
-stage_init<-hours
-stage_init[]<-1
-
-InitStage <- function() {list(stage=array(data=2,dim=c(dim(hours))))}
+data=list(divedepth=maxdive,argos=obs,steps=steps,R=R,j=j,idx=idx,tracks=tracks,argos_class=obs_class)
 
 #paramters to track
 pt<-c("alpha","sub_alpha","gamma","depth_mu","depth_tau","state", "sub_state")
 
 if(newModel){
- system.time(diving<-jags.parallel(model.file = "Bayesian/NestedDive.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=5000,n.burnin=4500,n.thin=2,DIC=FALSE,inits = InitStage))
+ system.time(diving<-jags.parallel(model.file = "Bayesian/NestedDive_NoInd.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10,n.burnin=0,n.thin=2,DIC=FALSE))
   }
 
 ```
@@ -459,16 +452,16 @@ splitpc[c("depth_mu","depth_tau","sub_alpha")]<-lapply(splitpc[c("depth_mu","dep
 
 #3 index
 splitpc[c("state")]<-lapply(splitpc[c("state")],function(x){
-    sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+),(\\d+),(\\d+)"))[,3:5]
-    colnames(sv)<-c("jAnimal","Track","step")
+    sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+),(\\d+)"))[,3:4]
+    colnames(sv)<-c("TrackID","step")
     pc<-data.frame(x,sv)
     return(pc)
 }) 
 
 #4 index
 splitpc[c("sub_state")]<-lapply(splitpc[c("sub_state")],function(x){
-    sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+),(\\d+),(\\d+),(\\d+)]"))[,3:6]
-    colnames(sv)<-c("jAnimal","Track","step","jStep")
+    sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+),(\\d+),(\\d+)]"))[,3:5]
+    colnames(sv)<-c("TrackID","step","jStep")
     pc<-data.frame(x,sv)
     return(pc)
 }) 
@@ -476,8 +469,10 @@ splitpc[c("sub_state")]<-lapply(splitpc[c("sub_state")],function(x){
 #bind all matrices back together
 pc_dive<-bind_rows(splitpc)
 rm(splitpc)
+```
 
-#chains
+#Chains
+```{r}
 ggplot(pc_dive[!pc_dive$parameter %in% c("dive_new","state","sub_state"),],aes(x=Draw,y=value,col=as.factor(chain))) + geom_line() + facet_wrap(~par,scales="free")
 
 #posteriors
@@ -487,7 +482,7 @@ ggplot(pc_dive[!pc_dive$parameter %in% c("dive_new","state","sub_state"),],aes(x
 pc_dive %>% filter(!parameter %in% c("dive_new","state","eval","sub_state")) %>% group_by(parameter,Behavior,sub_state) %>% summarize(mean=round(mean(value),3),upper=round(quantile(value,0.95),3),lower=round(quantile(value,0.05),3)) 
 
 #Animal lookup table
-pc_dive<-mdat %>% ungroup() %>%  dplyr::select(Animal,jAnimal)  %>% distinct() %>% mutate(jAnimal=as.factor(jAnimal)) %>% full_join(pc_dive)
+pc_dive<-mdat %>% ungroup() %>%  dplyr::select(Animal,TrackID,Track)  %>% distinct() %>% mutate(TrackID=as.factor(TrackID)) %>% full_join(pc_dive)
 ```
 
 # Temporal Variation in Dive Behavior
@@ -505,9 +500,13 @@ mdat$Animal<-as.factor(mdat$Animal)
 mdat$Track<-as.factor(mdat$Track)
 mdat$step<-as.factor(mdat$step)
 
-state_est<-pc_dive %>% group_by(jAnimal,Track,step,parameter) %>%  filter(parameter %in% c("state","sub_state")) %>% summarize(Behavior=Mode(value)) %>% ungroup()  %>% mutate(jAnimal=as.numeric(as.character(jAnimal)),Track=as.numeric(as.character(Track)),step=as.numeric(as.character(step))) %>% spread(parameter,Behavior) 
+state_est<-pc_dive %>% group_by(Animal,Track,step,parameter) %>%  filter(parameter %in% c("state","sub_state")) %>% summarize(Behavior=Mode(value)) %>% ungroup()  %>% spread(parameter,Behavior) 
 
 state_est %>% group_by(state,sub_state) %>% summarize(n=n())
+state_est$Animal<-as.factor(state_est$Animal)
+state_est$Track<-as.factor(state_est$Track)
+state_est$step<-as.factor(state_est$step)
+
 state_est<-state_est %>% inner_join(mdat)
 
 blookup<-data.frame(state=c(1,1,2,2),sub_state=c(1,2,1,2),Behavior=c("Traveling","Dummy","Foraging","Resting"))

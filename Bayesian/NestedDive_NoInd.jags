@@ -1,5 +1,4 @@
-sink("Bayesian/NestedDive_NoInd.jags")
-cat("
+
     model{
     
     for(g in 1:tracks){
@@ -179,6 +178,4 @@ cat("
     argos_alpha[5] <- 3.836444
     argos_alpha[6] <- 0.1081156
     
-    }"
-    ,fill=TRUE)
-sink()
+    }
