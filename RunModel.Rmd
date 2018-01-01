@@ -351,7 +351,7 @@ ggplot(mdat[,],aes(x=timestamp,y=-DepthMax)) + geom_point(size=0.1) + geom_line(
 ###################################################
 #filter by two whales for the moment
 #mdat<-mdat %>% filter(Animal %in% c("131132","131127"))
-mdat<-mdat %>% filter(Animal %in% c("131115","131116"))
+#mdat<-mdat %>% filter(Animal %in% c("131115","131116"))
 
 #remake map
 troy<-makemap(mdat)
@@ -416,7 +416,7 @@ data=list(divedepth=maxdive,argos=obs,steps=steps,R=R,j=j,idx=idx,tracks=tracks,
 pt<-c("alpha","sub_alpha","gamma","depth_mu","depth_tau","state", "sub_state")
 
 if(newModel){
- system.time(diving<-jags.parallel(model.file = "Bayesian/NestedDive_NoInd.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10,n.burnin=0,n.thin=2,DIC=FALSE))
+ system.time(diving<-jags(model.file = "Bayesian/NestedDive_NoInd.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=1000,n.burnin=900,n.thin=2,DIC=FALSE))
   }
 
 ```
@@ -645,7 +645,6 @@ ymin<-min(c(fitstat$E,fitstat$Enew)) - min(c(fitstat$E,fitstat$Enew)) * .1
 ymax<-max(c(fitstat$E,fitstat$Enew)) + max(c(fitstat$E,fitstat$Enew)) * .1
 ggplot(fitstat,aes(x=E,y=Enew)) + geom_point() + theme_bw() + labs(x="Discrepancy of observed data",y="Discrepancy of replicated data") + geom_abline() + coord_fixed() + ylim(ymin=ymin,ymax=ymax) + xlim(xmin=ymin,xmax=ymax)
 
-
 ggsave("Figures/PosteriorCheck.jpg",height = 4,width = 4)
 fitstat %>% group_by() %>% summarize(mean(E),var(Enew))
 ```
@@ -666,5 +665,5 @@ fitstat %>% group_by() %>% summarize(mean(E),var(Enew))
 ```
 
 ```{r}
-save.image("/Users/Ben/Dropbox/Whales/Dive/WhalePhys.RData")
+#save.image("/Users/Ben/Dropbox/Whales/Dive/WhalePhys.RData")
 ```

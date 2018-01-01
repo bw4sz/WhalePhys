@@ -4,6 +4,6 @@
 gcloud compute instances create cloudml \
     --image-family=container-vm \
     --image-project=google-containers \
-    --machine-type=n1-highmem-8 \
+    --machine-type=n1-highmem-4 \
     --metadata-from-file startup-script=Job.sh
     
