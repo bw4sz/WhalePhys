@@ -665,5 +665,5 @@ fitstat %>% group_by() %>% summarize(mean(E),var(Enew))
 ```
 
 ```{r}
-save.image("/Users/Ben/Dropbox/Whales/Dive/WhalePhys.RData")
+#save.image("/Users/Ben/Dropbox/Whales/Dive/WhalePhys.RData")
 ```
