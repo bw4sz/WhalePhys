@@ -50,11 +50,12 @@ library(leaflet)
 library(dplyr)
 library(stringr)
 library(chron)
-library(R2jags)
+library(jagsUI)
 library(boot)
 library(knitr)
 library(MCMCpack)
 library(truncnorm)
+
 
 newModel=T
 
@@ -118,6 +119,9 @@ dive<-bind_rows(gdat,dive)
 #order by timestamp
 dive<-dive %>% arrange(timestamp)
 mdat<-dive
+
+#One very ugly timestamp that is on land.
+mdat<-mdat %>% filter(!Latitude %in% '-64.5407')
 ```
 
 ## Dive profiles per indidivuals
@@ -210,7 +214,6 @@ ggsave("Figures/Map.png",height=6,width=8)
 
 ```{r,eval=F}
 #By individual
-
 for(x in unique(mdat$Animal)){
   mmap<-makemap(mdat %>% filter(Animal==x))
   ggmap(mmap)+geom_path(data=mdat,aes(x=Longitude, y=Latitude,group=Animal),size=.5) + geom_point(data=mdat,aes(x=Longitude, y=Latitude,col=DepthMax)) + theme_bw() + mytheme + scale_color_continuous(low="blue",high="red") + labs(col="Max Dive Depth (km)") + #facet_wrap(~Animal,ncol=2)
@@ -224,7 +227,7 @@ server <- function(input, output) {
 # create a reactive value that will store the click position
 data_of_click <- reactiveValues(clickedMarker=NULL)
 
-dat<-mdat %>% filter(Animal=="131130",!is.na(Latitude)) %>% mutate(ID=1:nrow(.))
+dat<-mdat %>% filter(Animal=="131133",!is.na(Latitude)) %>% mutate(ID=1:nrow(.))
 
 # Leaflet map with 2 markers
 pal<-colorFactor(heat.colors(10),dat$DepthMax)
@@ -368,6 +371,7 @@ mdat<-mdat %>% ungroup() %>% mutate(TrackID=as.numeric(as.factor(paste(Animal,Tr
 ```{r}
 ##Split into format for JAGS
 #Cast time array
+mdat<-mdat %>% mutate(j=as.numeric(j))
 j<-reshape2::acast(mdat,TrackID~step~jStep,value.var="j")
 
 #how many observations per individual in each step
@@ -416,7 +420,7 @@ data=list(divedepth=maxdive,argos=obs,steps=steps,R=R,j=j,idx=idx,tracks=tracks,
 pt<-c("alpha","sub_alpha","gamma","depth_mu","depth_tau","state", "sub_state")
 
 if(newModel){
- system.time(diving<-jags(model.file = "Bayesian/NestedDive_NoInd.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10000,n.burnin=9500,n.thin=2,DIC=FALSE))
+ system.time(diving<-jags(model.file = "Bayesian/NestedDive_NoInd.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10000,n.burnin=9000,n.thin=2,DIC=FALSE,codaOnly = c("state", "sub_state")))
   }
 
 ```
@@ -426,8 +430,9 @@ if(newModel){
 ```{r,eval=T}
 print("model complete")
 #bind chains
-pc_dive<-reshape2::melt(diving$BUGSoutput$sims.array)
-colnames(pc_dive)<-c("Draw","chain","par","value")
+names(diving$samples)<-1:length(diving$samples)
+pc_dive<-melt(lapply(diving$samples, as.data.frame))
+pc_dive<-pc_dive %>% dplyr::select(chain=L1,variable,value) %>% group_by(chain) %>% mutate(Draw=1:n()) %>% dplyr::select(Draw,chain,par=variable,value)
 
 #extract parameter name
 pc_dive$parameter<-data.frame(str_match(pc_dive$par,"(\\w+)"))[,-1]
@@ -479,7 +484,9 @@ ggplot(pc_dive[!pc_dive$parameter %in% c("dive_new","state","sub_state"),],aes(x
 ggplot(pc_dive[!pc_dive$parameter %in% c("dive_new","state","sub_state"),],aes(x=value,fill=as.factor(chain))) + geom_histogram() + facet_wrap(~par,scales="free")
 
 #sum table
-pc_dive %>% filter(!parameter %in% c("dive_new","state","eval","sub_state")) %>% group_by(parameter,Behavior,sub_state) %>% summarize(mean=round(mean(value),3),upper=round(quantile(value,0.95),3),lower=round(quantile(value,0.05),3)) 
+sumtable<-pc_dive %>% filter(!parameter %in% c("dive_new","state","eval","sub_state")) %>% group_by(parameter,Behavior,sub_state) %>% summarize(mean=round(mean(value),3),upper=round(quantile(value,0.95),3),lower=round(quantile(value,0.05),3)) 
+
+write.csv(sumtable,"Figures/sumtable.csv",row.names = F)
 
 #Animal lookup table
 pc_dive<-mdat %>% ungroup() %>%  dplyr::select(Animal,TrackID,Track)  %>% distinct() %>% mutate(TrackID=as.factor(TrackID)) %>% full_join(pc_dive)
@@ -530,6 +537,12 @@ ggplot(state_est %>% filter(!is.na(DepthMax)),aes(x=timestamp,y=-DepthMax,col=as
 ggplot(state_est,aes(x=timestamp,y=Behavior)) + geom_line(aes(group=1))  + geom_point() + facet_wrap(~Animal,scales="free",ncol=1) + theme_bw()
 ```
 
+## Proportion of behaviors
+
+```{r}
+prop<-state_est %>% group_by(Animal,Behavior) %>% filter(is.na(Latitude)) %>% summarize(n=length(jStep)) %>% mutate(p=n/sum(n)) %>% dplyr::select(-n) %>% spread(Behavior,p)
+```
+
 ## Simulate dive depths
 
 ```{r}
@@ -551,6 +564,9 @@ for(x in 1:nrow(statecount)){
 pred_dives<-bind_rows(pred_dives)
 
 ggplot(pred_dives) + geom_histogram(alpha=0.8,aes(x=DepthMax,fill=Behavior))  + theme_bw() + labs(x="Dive Depth (m)") +facet_wrap(~Behavior,scales="free")
+
+ggplot(pred_dives) + geom_density(alpha=0.8,aes(x=DepthMax,fill=Behavior))  + theme_bw() + labs(x="Dive Depth (m)") 
+ggsave("Figures/DiveDensity.jpg",height=4,width=7)
 
 ggplot(pred_dives)  + geom_histogram(data=mdat,aes(x=DepthMax),col="black")+ geom_histogram(alpha=0.8,aes(x=DepthMax,fill=Behavior))  + theme_bw() + labs(x="Dive Depth (m)")
 ggsave("Figures/DiveHist.jpg",height=4,width=7)
@@ -575,9 +591,13 @@ ggsave("Figures/DielbyMonth.png",height=5,width=10,unit="in")
 
 ## Month
 ```{r}
-ggplot(data=state_est) + geom_boxplot(aes(x=Month,y=DepthMax,fill=Behavior)) + ylab("Maximum Dive Depth (km)")
+state_est$Month<-factor(state_est$Month,levels=month.name)
+ggplot(data=state_est) + geom_boxplot(aes(x=Month,y=DepthMax,fill=Behavior)) + ylab("Dive Depth (m)")
 ggsave("Figures/Month.svg")
 ggsave("Figures/Month.png",height=5,width=8,unit="in")
+
+ggplot(data=state_est) + geom_density(aes(x=DepthMax,fill=Month)) + ylab("Dive Depth (m)") + facet_wrap(~Behavior,scale="free",ncol=1)
+
 ```
 
 # Spatial Prediction
@@ -615,7 +635,9 @@ ggplot(byhour,aes(x=LocalHour,y=prop,col=Behavior)) + geom_line()  + geom_point(
 Lines connect individuals
 ```{r}
 byhour<-state_est %>% group_by(LocalHour,Behavior) %>% summarize(n=n()) %>% mutate(prop=n/sum(n))
-ggplot(byhour,aes(x=LocalHour,y=prop,col=Behavior)) + geom_line()  + geom_point() + theme_bw() + scale_y_continuous("Frequency of Behavior",labels=scales::percent) 
+ggplot(byhour,aes(x=LocalHour,y=prop,col=Behavior)) + geom_line()  + geom_point() + theme_bw() + scale_y_continuous("Frequency of Behavior",labels=scales::percent) + labs(x="Hour")
+ggsave("Figures/DielFreq.svg",height=6,width=9)
+ggsave("Figures/DielFreq.png",height=6,width=9)
 ```
 
 ## Monthly
@@ -629,6 +651,7 @@ ggplot(bymonth,aes(x=Month,y=prop,fill=Behavior)) + geom_boxplot() + theme_bw() 
 ggsave("Figures/MonthFreq.svg",height=6,width=9)
 ggsave("Figures/MonthFreq.png",height=6,width=9)
 ```
+
 
 ## Posterior Checks
 

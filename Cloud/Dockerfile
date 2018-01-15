@@ -6,7 +6,7 @@ RUN install2.r -e ggmap chron truncnorm MCMCpack shiny leaflet rmarkdown plyr da
 RUN apt-get update
 RUN apt-get install --assume-yes jags git pandoc
 
-RUN install2.r -e  R2jags
+RUN install2.r -e  R2jags jagsUI
 
 ADD DockerJob.sh /mnt/
 
