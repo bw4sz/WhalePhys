@@ -1,0 +1,268 @@
+
+
+processing file: RunModel.Rmd
+  |                                                                         |                                                                 |   0%  |                                                                         |.                                                                |   1%
+   inline R code fragments
+
+  |                                                                         |..                                                               |   3%
+label: unnamed-chunk-1 (with options) 
+List of 3
+ $ echo   : symbol F
+ $ warning: symbol F
+ $ message: symbol F
+
+Loading required package: sp
+Loading required package: methods
+Checking rgeos availability: TRUE
+
+Attaching package: 'raster'
+
+The following object is masked from 'package:tidyr':
+
+    extract
+
+
+Attaching package: 'data.table'
+
+The following object is masked from 'package:raster':
+
+    shift
+
+
+Attaching package: 'dplyr'
+
+The following objects are masked from 'package:data.table':
+
+    between, first, last
+
+The following objects are masked from 'package:raster':
+
+    intersect, select, union
+
+The following objects are masked from 'package:stats':
+
+    filter, lag
+
+The following objects are masked from 'package:base':
+
+    intersect, setdiff, setequal, union
+
+
+Attaching package: 'chron'
+
+The following objects are masked from 'package:raster':
+
+    origin, origin<-
+
+Loading required package: lattice
+
+Attaching package: 'jagsUI'
+
+The following object is masked from 'package:utils':
+
+    View
+
+
+Attaching package: 'boot'
+
+The following object is masked from 'package:lattice':
+
+    melanoma
+
+Loading required package: coda
+
+Attaching package: 'coda'
+
+The following object is masked from 'package:jagsUI':
+
+    traceplot
+
+Loading required package: MASS
+
+Attaching package: 'MASS'
+
+The following object is masked from 'package:dplyr':
+
+    select
+
+The following objects are masked from 'package:raster':
+
+    area, select
+
+##
+## Markov Chain Monte Carlo Package (MCMCpack)
+## Copyright (C) 2003-2018 Andrew D. Martin, Kevin M. Quinn, and Jong Hee Park
+##
+## Support provided by the U.S. National Science Foundation
+## (Grants SES-0350646 and SES-0350613)
+##
+  |                                                                         |...                                                              |   4%
+  ordinary text without R code
+
+  |                                                                         |....                                                             |   6%
+label: unnamed-chunk-2
+  |                                                                         |.....                                                            |   7%
+  ordinary text without R code
+
+  |                                                                         |......                                                           |   9%
+label: unnamed-chunk-3 (with options) 
+List of 2
+ $ fig.height: num 11
+ $ eval      : symbol T
+
+  |                                                                         |.......                                                          |  10%
+  ordinary text without R code
+
+  |                                                                         |........                                                         |  12%
+label: unnamed-chunk-4 (with options) 
+List of 2
+ $ fig.height: num 11
+ $ eval      : symbol F
+
+  |                                                                         |.........                                                        |  13%
+  ordinary text without R code
+
+  |                                                                         |..........                                                       |  15%
+label: unnamed-chunk-5 (with options) 
+List of 1
+ $ eval: symbol T
+
+  |                                                                         |...........                                                      |  16%
+  ordinary text without R code
+
+  |                                                                         |...........                                                      |  18%
+label: unnamed-chunk-6 (with options) 
+List of 1
+ $ eval: symbol T
+
+maptype = "toner-background" is only available with source = "stamen".
+resetting to source = "stamen"...
+Map from URL : http://tile.stamen.com/toner-background/7/40/91.png
+Map from URL : http://tile.stamen.com/toner-background/7/41/91.png
+Map from URL : http://tile.stamen.com/toner-background/7/42/91.png
+Map from URL : http://tile.stamen.com/toner-background/7/43/91.png
+Map from URL : http://tile.stamen.com/toner-background/7/40/92.png
+Map from URL : http://tile.stamen.com/toner-background/7/41/92.png
+Map from URL : http://tile.stamen.com/toner-background/7/42/92.png
+Map from URL : http://tile.stamen.com/toner-background/7/43/92.png
+Map from URL : http://tile.stamen.com/toner-background/7/40/93.png
+Map from URL : http://tile.stamen.com/toner-background/7/41/93.png
+Map from URL : http://tile.stamen.com/toner-background/7/42/93.png
+Map from URL : http://tile.stamen.com/toner-background/7/43/93.png
+Map from URL : http://tile.stamen.com/toner-background/7/40/94.png
+Map from URL : http://tile.stamen.com/toner-background/7/41/94.png
+Map from URL : http://tile.stamen.com/toner-background/7/42/94.png
+Map from URL : http://tile.stamen.com/toner-background/7/43/94.png
+Map from URL : http://tile.stamen.com/toner-background/7/40/95.png
+Map from URL : http://tile.stamen.com/toner-background/7/41/95.png
+Map from URL : http://tile.stamen.com/toner-background/7/42/95.png
+Map from URL : http://tile.stamen.com/toner-background/7/43/95.png
+  |                                                                         |............                                                     |  19%
+  ordinary text without R code
+
+  |                                                                         |.............                                                    |  21%
+label: unnamed-chunk-7
+  |                                                                         |..............                                                   |  22%
+  ordinary text without R code
+
+  |                                                                         |...............                                                  |  24%
+label: unnamed-chunk-8 (with options) 
+List of 2
+ $ fig.width : num 12
+ $ fig.height: num 10
+
+Saving 12 x 10 in image
+  |                                                                         |................                                                 |  25%
+  ordinary text without R code
+
+  |                                                                         |.................                                                |  26%
+label: unnamed-chunk-9 (with options) 
+List of 1
+ $ eval: symbol F
+
+  |                                                                         |..................                                               |  28%
+  ordinary text without R code
+
+  |                                                                         |...................                                              |  29%
+label: unnamed-chunk-10 (with options) 
+List of 1
+ $ eval: symbol F
+
+  |                                                                         |....................                                             |  31%
+  ordinary text without R code
+
+  |                                                                         |.....................                                            |  32%
+label: unnamed-chunk-11
+Joining, by = "interval"
+Joining, by = "interval"
+Joining, by = "interval"
+Joining, by = "interval"
+Joining, by = "interval"
+Joining, by = "interval"
+Joining, by = "interval"
+Joining, by = "interval"
+Joining, by = "interval"
+Joining, by = "interval"
+Joining, by = "interval"
+  |                                                                         |......................                                           |  34%
+  ordinary text without R code
+
+  |                                                                         |.......................                                          |  35%
+label: unnamed-chunk-12 (with options) 
+List of 2
+ $ fig.height: num 12
+ $ fig.width : num 12
+
+  |                                                                         |........................                                         |  37%
+  ordinary text without R code
+
+  |                                                                         |.........................                                        |  38%
+label: unnamed-chunk-13
+maptype = "toner-background" is only available with source = "stamen".
+resetting to source = "stamen"...
+Map from URL : http://tile.stamen.com/toner-background/7/40/92.png
+Map from URL : http://tile.stamen.com/toner-background/7/41/92.png
+Map from URL : http://tile.stamen.com/toner-background/7/42/92.png
+Map from URL : http://tile.stamen.com/toner-background/7/43/92.png
+Map from URL : http://tile.stamen.com/toner-background/7/40/93.png
+Map from URL : http://tile.stamen.com/toner-background/7/41/93.png
+Map from URL : http://tile.stamen.com/toner-background/7/42/93.png
+Map from URL : http://tile.stamen.com/toner-background/7/43/93.png
+Map from URL : http://tile.stamen.com/toner-background/7/40/94.png
+Map from URL : http://tile.stamen.com/toner-background/7/41/94.png
+Map from URL : http://tile.stamen.com/toner-background/7/42/94.png
+Map from URL : http://tile.stamen.com/toner-background/7/43/94.png
+Map from URL : http://tile.stamen.com/toner-background/7/40/95.png
+Map from URL : http://tile.stamen.com/toner-background/7/41/95.png
+Map from URL : http://tile.stamen.com/toner-background/7/42/95.png
+Map from URL : http://tile.stamen.com/toner-background/7/43/95.png
+  |                                                                         |..........................                                       |  40%
+  ordinary text without R code
+
+  |                                                                         |...........................                                      |  41%
+label: unnamed-chunk-14
+Using jStep as value column: use value.var to override.
+  |                                                                         |............................                                     |  43%
+  ordinary text without R code
+
+  |                                                                         |.............................                                    |  44%
+label: unnamed-chunk-15 (with options) 
+List of 2
+ $ child: chr "Bayesian/NestedDive.R"
+ $ eval : symbol T
+
+
+
+processing file: ./Bayesian/NestedDive.R
+  |                                                                         |                                                                 |   0%  |                                                                         |.................................................................| 100%
+  ordinary text without R code
+
+
+  |                                                                         |..............................                                   |  46%
+  ordinary text without R code
+
+  |                                                                         |...............................                                  |  47%
+label: unnamed-chunk-16 (with options) 
+List of 1
+ $ eval: symbol T
+
