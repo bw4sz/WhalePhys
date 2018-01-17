@@ -417,10 +417,10 @@ R <- diag(c(1,1))
 data=list(divedepth=maxdive,argos=obs,steps=steps,R=R,j=j,idx=idx,tracks=tracks,argos_class=obs_class)
 
 #paramters to track
-pt<-c("alpha","sub_alpha","gamma","depth_mu","depth_tau","state", "sub_state")
+pt<-c("alpha","sub_alpha","gamma","depth_mu","depth_tau","state", "sub_state","E","Enew")
 
 if(newModel){
- system.time(diving<-jags(model.file = "Bayesian/NestedDive_NoInd.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10000,n.burnin=9000,n.thin=2,DIC=FALSE,codaOnly = c("state", "sub_state")))
+ system.time(diving<-jags(model.file = "Bayesian/NestedDive_NoInd.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10000,n.burnin=9000,n.thin=2,DIC=FALSE,codaOnly = c("state", "sub_state","E","Enew")))
   }
 
 ```
@@ -432,7 +432,7 @@ print("model complete")
 #bind chains
 names(diving$samples)<-1:length(diving$samples)
 pc_dive<-melt(lapply(diving$samples, as.data.frame))
-pc_dive<-pc_dive %>% dplyr::select(chain=L1,variable,value) %>% group_by(chain) %>% mutate(Draw=1:n()) %>% dplyr::select(Draw,chain,par=variable,value)
+pc_dive<-pc_dive %>% dplyr::select(chain=L1,variable,value) %>% group_by(chain,variable) %>% mutate(Draw=1:n()) %>% dplyr::select(Draw,chain,par=variable,value)
 
 #extract parameter name
 pc_dive$parameter<-data.frame(str_match(pc_dive$par,"(\\w+)"))[,-1]
@@ -457,14 +457,14 @@ splitpc[c("depth_mu","depth_tau","sub_alpha")]<-lapply(splitpc[c("depth_mu","dep
 
 #3 index
 splitpc[c("state")]<-lapply(splitpc[c("state")],function(x){
-    sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+),(\\d+)"))[,3:4]
+    sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+),(\\d+)]"))[,3:4]
     colnames(sv)<-c("TrackID","step")
     pc<-data.frame(x,sv)
     return(pc)
 }) 
 
 #4 index
-splitpc[c("sub_state")]<-lapply(splitpc[c("sub_state")],function(x){
+splitpc[c("sub_state","E","Enew")]<-lapply(splitpc[c("sub_state","E","Enew")],function(x){
     sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+),(\\d+),(\\d+)]"))[,3:5]
     colnames(sv)<-c("TrackID","step","jStep")
     pc<-data.frame(x,sv)
@@ -478,13 +478,13 @@ rm(splitpc)
 
 #Chains
 ```{r}
-ggplot(pc_dive[!pc_dive$parameter %in% c("dive_new","state","sub_state"),],aes(x=Draw,y=value,col=as.factor(chain))) + geom_line() + facet_wrap(~par,scales="free")
+ggplot(pc_dive[!pc_dive$parameter %in% c("dive_new","state","sub_state","E","Enew"),],aes(x=Draw,y=value,col=as.factor(chain))) + geom_line() + facet_wrap(~par,scales="free")
 
 #posteriors
-ggplot(pc_dive[!pc_dive$parameter %in% c("dive_new","state","sub_state"),],aes(x=value,fill=as.factor(chain))) + geom_histogram() + facet_wrap(~par,scales="free")
+ggplot(pc_dive[!pc_dive$parameter %in% c("dive_new","state","sub_state","E","Enew"),],aes(x=value,fill=as.factor(chain))) + geom_histogram() + facet_wrap(~par,scales="free")
 
 #sum table
-sumtable<-pc_dive %>% filter(!parameter %in% c("dive_new","state","eval","sub_state")) %>% group_by(parameter,Behavior,sub_state) %>% summarize(mean=round(mean(value),3),upper=round(quantile(value,0.95),3),lower=round(quantile(value,0.05),3)) 
+sumtable<-pc_dive %>% filter(!parameter %in% c("dive_new","state","eval","sub_state","E","Enew")) %>% group_by(parameter,Behavior,sub_state) %>% summarize(mean=round(mean(value),3),upper=round(quantile(value,0.95),3),lower=round(quantile(value,0.05),3)) 
 
 write.csv(sumtable,"Figures/sumtable.csv",row.names = F)
 
@@ -521,7 +521,7 @@ state_est<-state_est %>% inner_join(blookup)
 ```
 
 ```{r,fig.height=13,fig.width=20}
-ggplot(state_est %>% filter(!is.na(DepthMax)),aes(x=timestamp,y=DepthMax,col=Behavior,group=Track)) + geom_point() + geom_line(size=0.1,aes(group=Track)) + facet_wrap(~Animal,scales="free",ncol=1) + theme_bw() + scale_y_reverse() + labs(x="Date",y="Dive Depth (m)")
+ggplot(state_est %>% filter(!is.na(DepthMax)),aes(x=timestamp,y=DepthMax,col=Behavior,group=Track)) + geom_point() + geom_line(size=0.1,aes(group=Track)) + facet_wrap(~Animal,scales="free",ncol=1) + theme_bw() + scale_y_reverse() + labs(x="Date",y="Dive Depth (m)") + scale_color_manual(values=c("violetred3","pink","steelblue"))
 ggsave("Figures/TemporalBehavior.svg",height=12,width=10)
 ggsave("Figures/TemporalBehavior.jpeg",height=12,width=10)
 ```
@@ -565,7 +565,7 @@ pred_dives<-bind_rows(pred_dives)
 
 ggplot(pred_dives) + geom_histogram(alpha=0.8,aes(x=DepthMax,fill=Behavior))  + theme_bw() + labs(x="Dive Depth (m)") +facet_wrap(~Behavior,scales="free")
 
-ggplot(pred_dives) + geom_density(alpha=0.8,aes(x=DepthMax,fill=Behavior))  + theme_bw() + labs(x="Dive Depth (m)") 
+ggplot(pred_dives) + geom_density(alpha=0.8,aes(x=DepthMax,fill=Behavior))  + theme_bw() + labs(x="Dive Depth (m)") + scale_fill_manual(values=c("violetred3","pink","steelblue"))
 ggsave("Figures/DiveDensity.jpg",height=4,width=7)
 
 ggplot(pred_dives)  + geom_histogram(data=mdat,aes(x=DepthMax),col="black")+ geom_histogram(alpha=0.8,aes(x=DepthMax,fill=Behavior))  + theme_bw() + labs(x="Dive Depth (m)")
@@ -615,9 +615,10 @@ state_est[state_est$state==2,"TopLayer"]<-"Area-restricted Search"
 state_est$SecondLayer<-state_est$Behavior
 state_est<-gather(state_est,key="Layer",value="estimate",TopLayer:SecondLayer)
 
-state_est$Layer<-factor(state_est$Layer,levels = c("TopLayer","SecondLayer"),labels=c("Top Layer","Second Layer"))
-ggmap(troy) +geom_path(data=state_est %>% filter(!is.na(Latitude)),aes(x=Longitude, y=Latitude,group=paste(Animal,Track)),size=0.5) + geom_point(data=state_est,aes(x=Longitude, y=Latitude,col=estimate),size=0.5) + mytheme +facet_wrap(~Layer) + scale_color_manual(values=c("plum","Red","Green","Blue")) + labs(col="Behavior")
+state_est$Layer<-factor(state_est$Layer,levels = c("TopLayer","SecondLayer"),labels=c("Horizontal Movement","Vertical Movement"))
+ggmap(troy) +geom_path(data=state_est %>% filter(!is.na(Latitude)),aes(x=Longitude, y=Latitude,group=paste(Animal,Track)),size=0.1) + geom_point(data=state_est,aes(x=Longitude, y=Latitude,col=estimate),size=0.7) + mytheme +facet_wrap(~Layer) + scale_color_manual(values=c("tomato","violetred3","pink","steelblue")) + labs(col="Behavior") + theme(legend.position="bottom")
 ggsave("Figures/NestedMap.jpeg",height=8,width=11)
+ggsave("Figures/NestedMap.svg",height=8,width=11)
 ```
 
 #Residual Explorations
@@ -635,7 +636,7 @@ ggplot(byhour,aes(x=LocalHour,y=prop,col=Behavior)) + geom_line()  + geom_point(
 Lines connect individuals
 ```{r}
 byhour<-state_est %>% group_by(LocalHour,Behavior) %>% summarize(n=n()) %>% mutate(prop=n/sum(n))
-ggplot(byhour,aes(x=LocalHour,y=prop,col=Behavior)) + geom_line()  + geom_point() + theme_bw() + scale_y_continuous("Frequency of Behavior",labels=scales::percent) + labs(x="Hour")
+ggplot(byhour,aes(x=LocalHour,y=prop,col=Behavior)) + geom_line()  + geom_point() + theme_bw() + scale_y_continuous("Frequency of Behavior",labels=scales::percent) + labs(x="Hour") + scale_color_manual(values=c("violetred3","pink","steelblue"))
 ggsave("Figures/DielFreq.svg",height=6,width=9)
 ggsave("Figures/DielFreq.png",height=6,width=9)
 ```
@@ -647,11 +648,10 @@ Lines connect individuals
 bymonth<-state_est %>% group_by(Animal,Month,Behavior) %>% summarize(n=n()) %>% mutate(prop=n/sum(n)) %>% filter(!is.na(Month)) %>% filter(Behavior %in% c("Foraging","Resting"))
 bymonth$Month<-factor(bymonth$Month,levels=month.name)
 ggplot(bymonth,aes(x=Month,y=prop,col=Behavior)) + geom_line(aes(group=paste(Animal,Behavior)))  + geom_point() + theme_bw() + scale_y_continuous("Frequency of Behavior",labels=scales::percent)
-ggplot(bymonth,aes(x=Month,y=prop,fill=Behavior)) + geom_boxplot() + theme_bw() + scale_y_continuous("Frequency of Behavior",labels=scales::percent)
+ggplot(bymonth,aes(x=Month,y=prop,fill=Behavior)) + geom_boxplot() + theme_bw() + scale_y_continuous("Frequency of Behavior",labels=scales::percent) + scale_fill_manual(values=c("violetred3","pink"))
 ggsave("Figures/MonthFreq.svg",height=6,width=9)
 ggsave("Figures/MonthFreq.png",height=6,width=9)
 ```
-
 
 ## Posterior Checks
 
@@ -660,9 +660,9 @@ Better fitting models are smaller values and closer to the 1:1 line. A perfect m
 
 ```{r,fig.height=4,fig.width=8,message=F,warning=F,eval=F}
 
-fitstat<-pc_dive %>% filter(parameter %in% c("fit","fitnew")) 
+fitstat<-pc_dive %>% filter(parameter %in% c("E","Enew")) %>% group_by(parameter,Draw,chain) %>% summarize(fit=mean(value))
 
-fitstat<-dcast(fitstat,Draw+chain~parameter,value.var="value")
+fitstat<-dcast(fitstat,Draw+chain~parameter,value.var="fit")
 
 ymin<-min(c(fitstat$E,fitstat$Enew)) - min(c(fitstat$E,fitstat$Enew)) * .1
 ymax<-max(c(fitstat$E,fitstat$Enew)) + max(c(fitstat$E,fitstat$Enew)) * .1
@@ -672,16 +672,16 @@ ggsave("Figures/PosteriorCheck.jpg",height = 4,width = 4)
 fitstat %>% group_by() %>% summarize(mean(E),var(Enew))
 ```
 
-```{r,eval=F}
+```{r,eval=T}
 #By Animal
 
-fitstat<-pc_dive %>% filter(parameter %in% c("E","Enew")) %>% group_by(parameter,Draw,chain,jAnimal) %>% summarize(fit=mean(value))
+fitstat<-pc_dive %>% filter(parameter %in% c("E","Enew")) %>% group_by(parameter,Draw,chain,Animal) %>% summarize(fit=mean(value))
 
-fitstat<-dcast(fitstat,jAnimal+Draw+chain~parameter,value.var="fit")
+fitstat<-dcast(fitstat,Animal+Draw+chain~parameter,value.var="fit")
 
 ymin<-min(c(fitstat$E,fitstat$Enew)) - min(c(fitstat$E,fitstat$Enew)) * .1
 ymax<-max(c(fitstat$E,fitstat$Enew)) + max(c(fitstat$E,fitstat$Enew)) * .1
-ggplot(fitstat,aes(x=E,y=Enew)) + geom_point() + theme_bw() + labs(x="Discrepancy of observed data",y="Discrepancy of replicated data") + geom_abline() + coord_fixed() + facet_wrap(~jAnimal,scale="free")
+ggplot(fitstat,aes(x=E,y=Enew)) + geom_point() + theme_bw() + labs(x="Discrepancy of observed data",y="Discrepancy of replicated data") + geom_abline() + coord_fixed() + facet_wrap(~Animal,scale="free")
 
 ggsave("Figures/PosteriorCheckAnimal.jpg",height = 4,width = 4)
 fitstat %>% group_by() %>% summarize(mean(E),var(Enew))
