@@ -417,10 +417,10 @@ R <- diag(c(1,1))
 data=list(divedepth=maxdive,argos=obs,steps=steps,R=R,j=j,idx=idx,tracks=tracks,argos_class=obs_class)
 
 #paramters to track
-pt<-c("alpha","sub_alpha","gamma","depth_mu","depth_tau","state", "sub_state","E","Enew")
+pt<-c("alpha","sub_alpha","gamma","depth_mu","depth_tau","state", "sub_state")
 
 if(newModel){
- system.time(diving<-jags(model.file = "Bayesian/NestedDive_NoInd.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10000,n.burnin=9000,n.thin=2,DIC=FALSE,codaOnly = c("state", "sub_state","E","Enew")))
+ system.time(diving<-jags(model.file = "Bayesian/NestedDive_NoInd.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10000,n.burnin=9500,n.thin=1,DIC=FALSE,parallel=F,codaOnly = c("state", "sub_state")))
   }
 
 ```
@@ -464,7 +464,7 @@ splitpc[c("state")]<-lapply(splitpc[c("state")],function(x){
 }) 
 
 #4 index
-splitpc[c("sub_state","E","Enew")]<-lapply(splitpc[c("sub_state","E","Enew")],function(x){
+splitpc[c("sub_state")]<-lapply(splitpc[c("sub_state")],function(x){
     sv<-data.frame(str_match(x$par,"(\\w+)\\[(\\d+),(\\d+),(\\d+)]"))[,3:5]
     colnames(sv)<-c("TrackID","step","jStep")
     pc<-data.frame(x,sv)
@@ -478,10 +478,10 @@ rm(splitpc)
 
 #Chains
 ```{r}
-ggplot(pc_dive[!pc_dive$parameter %in% c("dive_new","state","sub_state","E","Enew"),],aes(x=Draw,y=value,col=as.factor(chain))) + geom_line() + facet_wrap(~par,scales="free")
+ggplot(pc_dive[!pc_dive$parameter %in% c("dive_new","state","sub_state"),],aes(x=Draw,y=value,col=as.factor(chain))) + geom_line() + facet_wrap(~par,scales="free")
 
 #posteriors
-ggplot(pc_dive[!pc_dive$parameter %in% c("dive_new","state","sub_state","E","Enew"),],aes(x=value,fill=as.factor(chain))) + geom_histogram() + facet_wrap(~par,scales="free")
+ggplot(pc_dive[!pc_dive$parameter %in% c("dive_new","state","sub_state"),],aes(x=value,fill=as.factor(chain))) + geom_histogram() + facet_wrap(~par,scales="free")
 
 #sum table
 sumtable<-pc_dive %>% filter(!parameter %in% c("dive_new","state","eval","sub_state","E","Enew")) %>% group_by(parameter,Behavior,sub_state) %>% summarize(mean=round(mean(value),3),upper=round(quantile(value,0.95),3),lower=round(quantile(value,0.05),3)) 
@@ -672,7 +672,7 @@ ggsave("Figures/PosteriorCheck.jpg",height = 4,width = 4)
 fitstat %>% group_by() %>% summarize(mean(E),var(Enew))
 ```
 
-```{r,eval=T}
+```{r,eval=F}
 #By Animal
 
 fitstat<-pc_dive %>% filter(parameter %in% c("E","Enew")) %>% group_by(parameter,Draw,chain,Animal) %>% summarize(fit=mean(value))
@@ -688,5 +688,5 @@ fitstat %>% group_by() %>% summarize(mean(E),var(Enew))
 ```
 
 ```{r}
-#save.image("/Users/Ben/Dropbox/Whales/Dive/WhalePhys.RData")
+save.image("/Users/Ben/Dropbox/Whales/Dive/WhalePhys.RData")
 ```

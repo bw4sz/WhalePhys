@@ -69,10 +69,10 @@
       
       #Assess Model Fit
       #Fit dive discrepancy statistics - comment out for memory savings
-      eval[g,t,u] ~ dnorm(depth_mu[state[g,t],sub_state[g,t,u]],depth_tau[state[g,t],sub_state[g,t,u]])T(0,)
-      E[g,t,u]<-pow((divedepth[g,t,u]-eval[g,t,u]),2)/(eval[g,t,u])
-      dive_new[g,t,u] ~ dnorm(depth_mu[state[g,t],sub_state[g,t,u]],depth_tau[state[g,t],sub_state[g,t,u]])T(0,)
-      Enew[g,t,u]<-pow((dive_new[g,t,u]-eval[g,t,u]),2)/(eval[g,t,u])
+      #eval[g,t,u] ~ dnorm(depth_mu[state[g,t],sub_state[g,t,u]],depth_tau[state[g,t],sub_state[g,t,u]])T(0,)
+      #E[g,t,u]<-pow((divedepth[g,t,u]-eval[g,t,u]),2)/(eval[g,t,u])
+      #dive_new[g,t,u] ~ dnorm(depth_mu[state[g,t],sub_state[g,t,u]],depth_tau[state[g,t],sub_state[g,t,u]])T(0,)
+      #Enew[g,t,u]<-pow((dive_new[g,t,u]-eval[g,t,u]),2)/(eval[g,t,u])
     }
     }
     }
