@@ -57,9 +57,9 @@ library(MCMCpack)
 library(truncnorm)
 
 
-newModel=T
+newModel=F
 
-opts_chunk$set(echo=F,warning=F,message=F,fig.width=11)
+opts_chunk$set(echo=T,warning=F,message=F,fig.width=11)
 
 mytheme<-theme(axis.text.x=element_blank(),axis.ticks.x=element_blank(),axis.text.y=element_blank(),axis.ticks.y=element_blank(),axis.title.x=element_blank(),axis.title.y=element_blank(),panel.grid=element_blank())
 ```
@@ -520,7 +520,7 @@ blookup<-data.frame(state=c(1,1,2,2),sub_state=c(1,2,1,2),Behavior=c("Traveling"
 state_est<-state_est %>% inner_join(blookup)
 ```
 
-```{r,fig.height=13,fig.width=20}
+```{r,fig.height=30,fig.width=20}
 ggplot(state_est %>% filter(!is.na(DepthMax)),aes(x=timestamp,y=DepthMax,col=Behavior,group=Track)) + geom_point() + geom_line(size=0.1,aes(group=Track)) + facet_wrap(~Animal,scales="free",ncol=1) + theme_bw() + scale_y_reverse() + labs(x="Date",y="Dive Depth (m)") + scale_color_manual(values=c("violetred3","pink","steelblue"))
 ggsave("Figures/TemporalBehavior.svg",height=12,width=10)
 ggsave("Figures/TemporalBehavior.jpeg",height=12,width=10)
@@ -533,14 +533,18 @@ ggplot(state_est %>% filter(!is.na(DepthMax)),aes(x=timestamp,y=-DepthMax,col=as
 ```
 
 # Behavior Sequence
-```{r}
+```{r,fig.height=25}
 ggplot(state_est,aes(x=timestamp,y=Behavior)) + geom_line(aes(group=1))  + geom_point() + facet_wrap(~Animal,scales="free",ncol=1) + theme_bw()
 ```
 
 ## Proportion of behaviors
 
 ```{r}
+state_est %>% group_by(Behavior) %>% filter(is.na(Latitude)) %>% summarize(n=length(jStep)) %>% mutate(p=n/sum(n)) %>% dplyr::select(-n) %>% spread(Behavior,p)
+
 prop<-state_est %>% group_by(Animal,Behavior) %>% filter(is.na(Latitude)) %>% summarize(n=length(jStep)) %>% mutate(p=n/sum(n)) %>% dplyr::select(-n) %>% spread(Behavior,p)
+
+state_est %>% group_by(Behavior,Month) %>% summarize(LQuartile=quantile(DepthMax,0.25,na.rm=T),HQuartile=quantile(DepthMax,0.75,na.rm=T),max=max(DepthMax,na.rm=T),s=sum(DepthMax>400,na.rm = T),mean=mean(DepthMax,na.rm=T),n=n())
 ```
 
 ## Simulate dive depths
@@ -688,5 +692,5 @@ fitstat %>% group_by() %>% summarize(mean(E),var(Enew))
 ```
 
 ```{r}
-save.image("/Users/Ben/Dropbox/Whales/Dive/WhalePhys.RData")
+#save.image("/Users/Ben/Dropbox/Whales/Dive/WhalePhys.RData")
 ```
