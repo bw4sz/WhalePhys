@@ -420,7 +420,7 @@ data=list(divedepth=maxdive,argos=obs,steps=steps,R=R,j=j,idx=idx,tracks=tracks,
 pt<-c("alpha","sub_alpha","gamma","depth_mu","depth_tau","state", "sub_state")
 
 if(newModel){
- system.time(diving<-jags(model.file = "Bayesian/NestedDive_NoInd.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=10000,n.burnin=9500,n.thin=1,DIC=FALSE,parallel=F,codaOnly = c("state", "sub_state")))
+ system.time(diving<-jags(model.file = "Bayesian/NestedDive_NoInd.jags",data=data,n.chains=2,parameters.to.save=pt,n.iter=30000,n.burnin=28000,n.thin=4,DIC=FALSE,parallel=T,codaOnly = c("state", "sub_state")))
   }
 
 ```
