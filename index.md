@@ -1,7 +1,10 @@
 # Capturing foraging and resting behavior using nested multivariate Markov models in an air-breathing marine vertebrate
-Ben G. Weinstein1, Ladd Irvine1, Ari S. Friedlaender1,2
-1Department of Fisheries and Wildlife, Marine Mammal Institute, Oregon State University, 2030 Marine Science Drive, Newport, OR 97365, USA
-2Institute of Marine Sciences, Department of Ecology and Evolutionary Biology, UC Santa Cruz, 115 McAllister Way, Santa Cruz, CA 95060
+
+Ben G. Weinstein*, Ladd Irvine*, Ari S. Friedlaender*+
+
+*Department of Fisheries and Wildlife, Marine Mammal Institute, Oregon State University, 2030 Marine Science Drive, Newport, OR 97365, USA
+
++Institute of Marine Sciences, Department of Ecology and Evolutionary Biology, UC Santa Cruz, 115 McAllister Way, Santa Cruz, CA 95060
 
 Citation:
 In review at Movement Ecology. Minor Revisions.
