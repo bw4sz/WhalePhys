@@ -11,8 +11,9 @@ In review at Movement Ecology. Minor Revisions.
 
 ## Source Code
 - [Dive Analysis](RunModel.html)
+- [Jags Model](https://github.com/bw4sz/WhalePhys/blob/master/Bayesian/NestedDive.jags)
 
-Abstract
+# Abstract
 
 Background: Matching animal movement with the behaviors that shape life history requires a rigorous connection between the observed patterns of space use and inferred behavioral states. As animal-borne dataloggers capture a greater diversity and frequency of three dimensional movements, we can increase the complexity of movement models describing animal behavior. One challenge in combining data streams is the different spatial and temporal frequency of observations. Nested movement models provide a flexible framework for gleaning data from long-duration, but temporally sparse, data sources. 
 Results: Using a two-layer nested model, we combined geographic and vertical movement to infer traveling, foraging and resting behaviors of Humpback whales off the West Antarctic Peninsula. This approach refined previous work using only geographic data to delineate coarser behavioral states. Our results showed increased intensity in foraging activity in late season animals as the whales prepared to migrate north to tropical calving grounds. Our model also suggests strong diel variation in movement states, likely linked to daily changes in prey distribution. 
