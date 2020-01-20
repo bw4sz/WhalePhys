@@ -521,9 +521,9 @@ state_est<-state_est %>% inner_join(blookup)
 ```
 
 ```{r,fig.height=30,fig.width=20}
-ggplot(state_est %>% filter(!is.na(DepthMax)),aes(x=timestamp,y=DepthMax,col=Behavior,group=Track)) + geom_point() + geom_line(size=0.1,aes(group=Track)) + facet_wrap(~Animal,scales="free",ncol=1) + theme_bw() + scale_y_reverse() + labs(x="Date",y="Dive Depth (m)") + scale_color_manual(values=c("violetred3","pink","steelblue"))
-ggsave("Figures/TemporalBehavior.svg",height=12,width=10)
-ggsave("Figures/TemporalBehavior.jpeg",height=12,width=10)
+ggplot(state_est %>% filter(!is.na(DepthMax)),aes(x=timestamp,y=DepthMax,col=Behavior,group=Track)) + geom_point(size=0.5) + geom_line(size=0.1,aes(group=Track)) + facet_wrap(~Animal,scales="free",ncol=2) + theme_bw() + scale_y_reverse() + labs(x="Date",y="Dive Depth (m)") + scale_color_manual(values=c("violetred3","pink","steelblue"))
+ggsave("Figures/TemporalBehavior.svg",height=10,width=12)
+ggsave("Figures/TemporalBehavior.jpeg",height=10,width=12)
 ```
 
 Grouped by stage
@@ -643,6 +643,27 @@ byhour<-state_est %>% group_by(LocalHour,Behavior) %>% summarize(n=n()) %>% muta
 ggplot(byhour,aes(x=LocalHour,y=prop,col=Behavior)) + geom_line()  + geom_point() + theme_bw() + scale_y_continuous("Frequency of Behavior",labels=scales::percent) + labs(x="Hour") + scale_color_manual(values=c("violetred3","pink","steelblue"))
 ggsave("Figures/DielFreq.svg",height=6,width=9)
 ggsave("Figures/DielFreq.png",height=6,width=9)
+```
+
+### By each draw
+
+```{r}
+
+sdraws<-sample(1:500,50)
+schains<-sample(1:2,50,replace=T)
+
+hour_estdraw<-pc_dive %>% filter(Draw %in% sdraws,chain %in% schains, parameter %in% c("state","sub_state"))  %>% dplyr::select(-par,-Behavior)  %>% spread(parameter,value) %>% ungroup()
+
+#merge substates and states for each draw., step, jStep
+sub_states<-hour_estdraw %>% dplyr::select(-state)
+states<-hour_estdraw %>% filter(!is.na(state)) %>% dplyr::select(Draw,chain,Animal,TrackID,step,state)
+pred_states<-sub_states %>% inner_join(states)
+
+bydraw<-pred_states%>% mutate(Animal=as.factor(Animal),TrackID=as.numeric(TrackID),jStep=as.numeric(jStep)) %>% inner_join(mdat)  %>% inner_join(blookup) %>% group_by(Draw,chain,LocalHour,Behavior)  %>% summarize(n=n()) %>% mutate(prop=n/sum(n)) %>% group_by(LocalHour,Behavior) %>% summarize(mean=mean(prop),lower=quantile(prop,0.05),upper=quantile(prop,0.95))
+
+ggplot(bydraw,aes(x=LocalHour,y=mean,col=Behavior)) + geom_line()  + geom_point() + geom_errorbar(aes(ymin=lower,ymax=upper),size=0.3) + theme_bw() + scale_y_continuous("Frequency of Behavior",labels=scales::percent) + labs(x="Hour") + scale_color_manual(values=c("violetred3","pink","steelblue"))
+
+ggsave("Figures/Diel_with_bars.jpeg",height=5,width = 7,dpi=500)
 ```
 
 ## Monthly
